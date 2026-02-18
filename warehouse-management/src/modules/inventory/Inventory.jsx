@@ -1,18 +1,44 @@
 import React, { useState } from 'react';
-import { Plus, Filter, Download, Package } from 'lucide-react';
+import { Plus, Filter, Download, Package, Eye, Edit, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
 import InventoryForm from './InventoryForm';
+import InventoryDetails from './InventoryDetails';
+import InventoryEditForm from './InventoryEditForm';
 import { useWMS } from '../../context/WMSContext';
 
 const Inventory = () => {
-  const { inventory, getStats } = useWMS();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { inventory, getStats, deleteInventoryItem } = useWMS();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const stats = getStats();
 
+  const handleView = (item) => {
+    setSelectedItem(item);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEdit = (item) => {
+    setSelectedItem(item);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDelete = async (item) => {
+    if (window.confirm(`Are you sure you want to delete ${item.description}?`)) {
+      const success = await deleteInventoryItem(item.id);
+      if (success) {
+        alert('Inventory item deleted successfully');
+      } else {
+        alert('Failed to delete inventory item');
+      }
+    }
+  };
+
   const handleSuccess = () => {
-    console.log('Inventory item created successfully!');
+    console.log('Operation completed successfully!');
   };
 
   return (
@@ -22,7 +48,7 @@ const Inventory = () => {
           <Button 
             variant="primary" 
             icon={Plus}
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsCreateModalOpen(true)}
           >
             Add Item
           </Button>
@@ -85,7 +111,7 @@ const Inventory = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {inventory.length === 0 ? (
+              {!inventory || inventory.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
                     <Package size={48} className="mx-auto mb-3 opacity-50" />
@@ -97,32 +123,53 @@ const Inventory = () => {
                 inventory.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {item.itemCode}
+                      {item.item_code || item.itemCode || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {item.description}
+                      {item.description || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {item.category}
+                      {item.category || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <span className={`font-semibold ${
                         item.quantity === 0 ? 'text-red-600' :
-                        item.quantity <= item.minStockLevel ? 'text-orange-600' :
+                        item.quantity <= (item.min_stock_level || item.minStockLevel || 0) ? 'text-orange-600' :
                         'text-gray-900'
                       }`}>
-                        {item.quantity}
+                        {item.quantity || 0}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {item.unit}
+                      {item.unit || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.location || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                      <button className="text-gray-600 hover:text-gray-900">Edit</button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleView(item)}
+                          className="text-blue-600 hover:text-blue-900 p-1"
+                          title="View"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(item)}
+                          className="text-gray-600 hover:text-gray-900 p-1"
+                          title="Edit"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(item)}
+                          className="text-red-600 hover:text-red-900 p-1"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -132,16 +179,57 @@ const Inventory = () => {
         </div>
       </Card>
 
+      {/* Create Modal */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
         title="Add Inventory Item"
         size="lg"
       >
         <InventoryForm
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => setIsCreateModalOpen(false)}
           onSuccess={handleSuccess}
         />
+      </Modal>
+
+      {/* View Modal */}
+      <Modal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        title="Inventory Item Details"
+        size="lg"
+      >
+        <InventoryDetails item={selectedItem} />
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+          <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+            Close
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              setIsViewModalOpen(false);
+              handleEdit(selectedItem);
+            }}
+          >
+            Edit
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Inventory Item"
+        size="lg"
+      >
+        {selectedItem && (
+          <InventoryEditForm
+            item={selectedItem}
+            onClose={() => setIsEditModalOpen(false)}
+            onSuccess={handleSuccess}
+          />
+        )}
       </Modal>
     </div>
   );
