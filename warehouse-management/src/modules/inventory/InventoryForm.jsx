@@ -10,9 +10,9 @@ const InventoryForm = ({ onClose, onSuccess }) => {
     quantity: 0,
     unit: '',
     location: '',
-    minStockLevel: 0,
-    maxStockLevel: 0,
-    unitPrice: 0,
+    minStockLevel: '',
+    maxStockLevel: '',
+    unitPrice: '',
     supplier: ''
   });
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
 
   const handleNumberChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+    setFormData(prev => ({ ...prev, [name]: parseFloat(value) || '' }));
   };
 
   const handleSubmit = async (e) => {
