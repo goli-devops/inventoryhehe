@@ -7,7 +7,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     description: '',
     category: '',
-    quantity: 0,
+    quantity: '',
     unit: '',
     location: '',
     minStockLevel: '',
@@ -112,7 +112,6 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             name="quantity"
             value={formData.quantity}
             onChange={handleNumberChange}
-            min="0"
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -121,7 +120,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
         {/* Unit Price */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Unit Price
+            Unit Price <span className="text-red-500">*</span>
           </label>
           <input
             type="number"
@@ -129,16 +128,16 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             value={formData.unitPrice}
             onChange={handleNumberChange}
             min="0"
-            step="0.01"
+            step="1"
+            required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.00"
           />
         </div>
 
         {/* Min Stock Level */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Min Stock Level
+            Min Stock Level <span className="text-red-500">*</span>
           </label>
           <input
             type="number"
@@ -147,14 +146,14 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             onChange={handleNumberChange}
             min="0"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Alert when stock is below this"
+            required
           />
         </div>
 
         {/* Max Stock Level */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Max Stock Level
+            Max Stock Level <span className="text-red-500">*</span>
           </label>
           <input
             type="number"
@@ -164,6 +163,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             min="0"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Maximum stock to maintain"
+            required
           />
         </div>
 
