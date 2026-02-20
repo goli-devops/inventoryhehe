@@ -8,7 +8,7 @@ const PRForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     department: '',
     notes: '',
-    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: 0 }]
+    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }]
   });
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +26,7 @@ const PRForm = ({ onClose, onSuccess }) => {
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { description: '', quantity: 1, unit: '', estimatedPrice: 0 }]
+      items: [...prev.items, { description: '', quantity: 1, unit: '', estimatedPrice: '' }]
     }));
   };
 
@@ -83,6 +83,41 @@ const PRForm = ({ onClose, onSuccess }) => {
         </select>
       </div>
 
+      {/* Requester */}
+<div>
+  <div className="flex items-center justify-between mb-3">
+    <label className="block text-sm font-medium text-gray-700">
+      Requester <span className="text-red-500">*</span>
+    </label>
+  </div>
+
+  <div className="space-y-3">
+    {formData.items.map((item, index) => (
+      <div
+        key={index}
+        className="grid grid-cols-8 gap-3 items-start p-3 border border-gray-200 rounded-lg"
+      >
+        <div className="col-span-4">
+          <input
+            type="text"
+            placeholder="First Name"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="col-span-4">
+          <input
+            type="text"
+            placeholder="Last Name"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
       {/* Items */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -123,19 +158,25 @@ const PRForm = ({ onClose, onSuccess }) => {
                   type="text"
                   placeholder="Unit"
                   value={item.unit}
-                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  onChange={(e) => {
+                  // Allow only letters and spaces
+                  const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, "");
+                  handleItemChange(index, "unit", textOnly);
+    }}
+    required
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+  />
+</div>
+
               <div className="col-span-2">
                 <input
                   type="number"
                   placeholder="Est. Price"
                   value={item.estimatedPrice}
-                  onChange={(e) => handleItemChange(index, 'estimatedPrice', parseFloat(e.target.value) || 0)}
-                  min="0"
-                  step="0.01"
+                  onChange={(e) => handleItemChange(index, 'estimatedPrice', parseFloat(e.target.value) || '')}
+                  min="1"
+                  step="1"
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

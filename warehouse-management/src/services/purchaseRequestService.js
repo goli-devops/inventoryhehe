@@ -15,7 +15,8 @@ const PurchaseRequestService = {
       const newPR = {
         pr_number: prNumber,
         department: prData.department,
-        requested_by: prData.requestedBy,
+        requester:prData.requester,
+        created_by: prData.requestedBy,
         items: prData.items || [],
         status: 'Submitted',
         notes: prData.notes || '',
@@ -87,7 +88,7 @@ const PurchaseRequestService = {
         {
           action: 'Updated',
           date: new Date().toISOString(),
-          user: updates.updatedBy || 'System',
+          user: updates.created_by || 'System',
           status: updates.status || existingPR.status,
           notes: updates.notes || ''
         }
@@ -116,7 +117,7 @@ const PurchaseRequestService = {
     try {
       return await this.update(id, {
         status: newStatus,
-        updatedBy: user
+        created_by: user
       });
     } catch (error) {
       console.error('Error updating PR status:', error);
