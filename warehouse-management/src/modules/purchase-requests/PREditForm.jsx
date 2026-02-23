@@ -45,7 +45,10 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
-      const result = await updatePR(pr.id, formData);
+      const result = await updatePR(pr.id, {
+        ...formData,
+        // updatedBy will be automatically added by WMSContext
+      });
       if (result) {
         onSuccess && onSuccess(result);
         onClose();

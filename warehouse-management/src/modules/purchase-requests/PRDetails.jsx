@@ -94,17 +94,35 @@ const PRDetails = ({ pr }) => {
       {pr.history && pr.history.length > 0 && (
         <div>
           <p className="text-sm font-medium text-gray-700 mb-3">History</p>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {pr.history.map((entry, index) => (
-              <div key={index} className="flex items-start gap-3 text-sm">
-                <Clock size={16} className="text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-gray-800">
-                    <span className="font-medium">{entry.action}</span> by {entry.user}
+              <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                <Clock size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-800">{entry.action}</span>
+                    {entry.status && (
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full
+                        ${entry.status === 'Submitted' ? 'bg-blue-100 text-blue-800' : ''}
+                        ${entry.status === 'Approved' ? 'bg-green-100 text-green-800' : ''}
+                        ${entry.status === 'For Canvass' ? 'bg-yellow-100 text-yellow-800' : ''}
+                        ${entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' : ''}
+                      `}>
+                        {entry.status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    by <span className="font-medium text-gray-700">{entry.user}</span>
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {new Date(entry.date).toLocaleString()}
                   </p>
+                  {entry.notes && (
+                    <p className="text-xs text-gray-600 mt-2 italic bg-white p-2 rounded border-l-2 border-blue-300">
+                      "{entry.notes}"
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

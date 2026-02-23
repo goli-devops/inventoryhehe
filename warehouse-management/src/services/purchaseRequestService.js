@@ -15,8 +15,7 @@ const PurchaseRequestService = {
       const newPR = {
         pr_number: prNumber,
         department: prData.department,
-        requester:prData.requester,
-        created_by: prData.requestedBy,
+        requested_by: prData.requestedBy,
         items: prData.items || [],
         status: 'Submitted',
         notes: prData.notes || '',
@@ -88,16 +87,19 @@ const PurchaseRequestService = {
         {
           action: 'Updated',
           date: new Date().toISOString(),
-          user: updates.created_by || 'System',
+          user: updates.updatedBy || updates.updated_by || 'System',
           status: updates.status || existingPR.status,
           notes: updates.notes || ''
         }
       ];
 
+      // Remove updatedBy from the main update object as it's only for history
+      const { updatedBy, ...updateData } = updates;
+
       const { data, error } = await supabase
         .from('purchase_requests')
         .update({
-          ...updates,
+          ...updateData,
           history: updatedHistory
         })
         .eq('id', id)
@@ -117,7 +119,7 @@ const PurchaseRequestService = {
     try {
       return await this.update(id, {
         status: newStatus,
-        created_by: user
+        updatedBy: user
       });
     } catch (error) {
       console.error('Error updating PR status:', error);
