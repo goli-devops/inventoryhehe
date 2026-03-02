@@ -1,11 +1,10 @@
 import React from 'react';
-import { LayoutDashboard, FileText, ShoppingCart, Package, Scan, BarChart3, Settings, Users, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings, Users, Menu, X } from 'lucide-react';
 
 const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen }) => {
   const modules = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
-    { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
     { id: 'inventory', name: 'Inventory', icon: Package },
     { id: 'assets', name: 'Asset Tracking', icon: Scan },
     { id: 'reports', name: 'Reports & Analytics', icon: BarChart3 },

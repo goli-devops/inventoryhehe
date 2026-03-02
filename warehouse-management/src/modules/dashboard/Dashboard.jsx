@@ -15,7 +15,6 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalInventoryItems: 0,
     pendingPRs: 0,
-    activePOs: 0,
     assetsTagged: 0,
     lowStockItems: 0,
     outOfStockItems: 0
@@ -79,18 +78,6 @@ const Dashboard = () => {
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
               <Package className="text-yellow-600" size={24} />
-            </div>
-          </div>
-        </Card>
-
-        <Card padding="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Active POs</p>
-              <p className="text-3xl font-bold text-gray-800">{stats.activePOs}</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Package className="text-green-600" size={24} />
             </div>
           </div>
         </Card>

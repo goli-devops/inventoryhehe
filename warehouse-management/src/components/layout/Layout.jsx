@@ -3,7 +3,6 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import Dashboard from '../../modules/dashboard/Dashboard';
 import PurchaseRequests from '../../modules/purchase-requests/PurchaseRequests';
-import PurchaseOrders from '../../modules/purchase-orders/PurchaseOrders';
 import Inventory from '../../modules/inventory/Inventory';
 import Assets from '../../modules/assets/Assets';
 import Reports from '../../modules/reports/Reports';

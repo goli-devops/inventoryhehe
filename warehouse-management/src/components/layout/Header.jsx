@@ -1,12 +1,11 @@
 import React from 'react';
 import { Bell, Search } from 'lucide-react';
-import { LayoutDashboard, FileText, ShoppingCart, Package, Scan, BarChart3, Settings, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings, Users } from 'lucide-react';
 
 const Header = ({ activeModule }) => {
   const modules = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
-    { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
     { id: 'inventory', name: 'Inventory', icon: Package },
     { id: 'assets', name: 'Asset Tracking', icon: Scan },
     { id: 'reports', name: 'Reports & Analytics', icon: BarChart3 },
