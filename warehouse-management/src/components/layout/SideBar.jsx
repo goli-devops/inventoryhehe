@@ -5,7 +5,6 @@ const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen })
   const modules = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
-    { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
     { id: 'inventory', name: 'Inventory', icon: Package },
     { id: 'assets', name: 'Asset Tracking', icon: Scan },
     { id: 'reports', name: 'Reports & Analytics', icon: BarChart3 },
@@ -20,8 +19,8 @@ const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen })
         <div className="flex items-center justify-between">
           <div className={`overflow-hidden transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
             <div className="whitespace-nowrap">
-              <h1 className="text-xl font-bold">GOLI - ICT</h1>
-              <p className="text-xs text-blue-200">Warehouse Management System</p>
+              <h1 className="text-xl font-bold">GOLI WMS</h1>
+              <p className="text-xs text-blue-200">Warehouse Management</p>
             </div>
           </div>
           <button 

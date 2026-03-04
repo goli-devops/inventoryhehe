@@ -7,8 +7,10 @@ const PRForm = ({ onClose, onSuccess }) => {
   const { createPR } = useWMS();
   const [formData, setFormData] = useState({
     department: '',
+    requesterLastName: '',
+    requesterFirstName: '',
     notes: '',
-    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }]
+    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }],
   });
   const [loading, setLoading] = useState(false);
 
@@ -92,9 +94,7 @@ const PRForm = ({ onClose, onSuccess }) => {
   </div>
 
   <div className="space-y-3">
-    {formData.items.map((item, index) => (
       <div
-        key={index}
         className="grid grid-cols-8 gap-3 items-start p-3 border border-gray-200 rounded-lg"
       >
         <div className="col-span-4">
@@ -114,7 +114,6 @@ const PRForm = ({ onClose, onSuccess }) => {
           />
         </div>
       </div>
-    ))}
   </div>
 </div>
 

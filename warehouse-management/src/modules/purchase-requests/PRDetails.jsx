@@ -1,7 +1,9 @@
-import React from 'react';
-import { Calendar, User, Package, FileText, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, User, Package, FileText, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 const PRDetails = ({ pr }) => {
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   if (!pr) return null;
 
   return (
@@ -90,43 +92,62 @@ const PRDetails = ({ pr }) => {
         </div>
       )}
 
-      {/* History */}
+      {/* History - Collapsible */}
       {pr.history && pr.history.length > 0 && (
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-3">History</p>
-          <div className="space-y-3">
-            {pr.history.map((entry, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                <Clock size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-800">{entry.action}</span>
-                    {entry.status && (
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full
-                        ${entry.status === 'Submitted' ? 'bg-blue-100 text-blue-800' : ''}
-                        ${entry.status === 'Approved' ? 'bg-green-100 text-green-800' : ''}
-                        ${entry.status === 'For Canvass' ? 'bg-yellow-100 text-yellow-800' : ''}
-                        ${entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' : ''}
-                      `}>
-                        {entry.status}
-                      </span>
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setHistoryOpen(!historyOpen)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-blue-500" />
+              <span className="text-sm font-medium text-gray-700">History</span>
+              <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                {pr.history.length} {pr.history.length === 1 ? 'entry' : 'entries'}
+              </span>
+            </div>
+            {historyOpen ? (
+              <ChevronUp size={16} className="text-gray-400" />
+            ) : (
+              <ChevronDown size={16} className="text-gray-400" />
+            )}
+          </button>
+
+          {historyOpen && (
+            <div className="p-4 space-y-3">
+              {pr.history.map((entry, index) => (
+                <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Clock size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-800">{entry.action}</span>
+                      {entry.status && (
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full
+                          ${entry.status === 'Submitted' ? 'bg-blue-100 text-blue-800' : ''}
+                          ${entry.status === 'Approved' ? 'bg-green-100 text-green-800' : ''}
+                          ${entry.status === 'For Canvass' ? 'bg-yellow-100 text-yellow-800' : ''}
+                          ${entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' : ''}
+                        `}>
+                          {entry.status}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      by <span className="font-medium text-gray-700">{entry.user}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {new Date(entry.date).toLocaleString()}
+                    </p>
+                    {entry.notes && (
+                      <p className="text-xs text-gray-600 mt-2 italic bg-white p-2 rounded border-l-2 border-blue-300">
+                        "{entry.notes}"
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">
-                    by <span className="font-medium text-gray-700">{entry.user}</span>
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {new Date(entry.date).toLocaleString()}
-                  </p>
-                  {entry.notes && (
-                    <p className="text-xs text-gray-600 mt-2 italic bg-white p-2 rounded border-l-2 border-blue-300">
-                      "{entry.notes}"
-                    </p>
-                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
