@@ -4,19 +4,17 @@ import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
 import AssetForm from './AssetForm';
+import AssetEditForm from './AssetEditForm';
 import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 import { useWMS } from '../../context/WMSContext';
 
 const Assets = () => {
   const { assets, getStats } = useWMS();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editAsset, setEditAsset] = useState(null);
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
   const stats = getStats();
-
-  const handleSuccess = () => {
-    console.log('Asset created successfully!');
-  };
 
   const inUseAssets = assets.filter(a => a.status === 'In Use').length;
   const maintenanceAssets = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
@@ -25,7 +23,7 @@ const Assets = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="purple" icon={Plus} onClick={() => setIsModalOpen(true)}>
+          <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>
             Add Asset
           </Button>
           <Button variant="primary" icon={Scan}>
@@ -40,6 +38,7 @@ const Assets = () => {
         </Button>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card padding="p-4">
           <p className="text-sm text-gray-500 mb-1">Total Assets</p>
@@ -59,6 +58,7 @@ const Assets = () => {
         </Card>
       </div>
 
+      {/* Table */}
       <Card padding="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -119,11 +119,19 @@ const Assets = () => {
                           <span className="text-gray-400 text-xs">No QR</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onClick={() => setSelectedQRAsset(asset)} className="text-blue-600 hover:text-blue-900 mr-3">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => setSelectedQRAsset(asset)}
+                          className="text-blue-600 hover:text-blue-900 mr-3 font-medium"
+                        >
                           View QR
                         </button>
-                        <button className="text-gray-600 hover:text-gray-900">Edit</button>
+                        <button
+                          onClick={() => setEditAsset(asset)}
+                          className="text-gray-600 hover:text-gray-900 font-medium"
+                        >
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   );
@@ -134,10 +142,23 @@ const Assets = () => {
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Asset" size="lg">
-        <AssetForm onClose={() => setIsModalOpen(false)} onSuccess={handleSuccess} />
+      {/* Add Asset Modal */}
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Asset" size="lg">
+        <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => setIsAddModalOpen(false)} />
       </Modal>
 
+      {/* Edit Asset Modal */}
+      <Modal isOpen={!!editAsset} onClose={() => setEditAsset(null)} title="Edit Asset" size="lg">
+        {editAsset && (
+          <AssetEditForm
+            asset={editAsset}
+            onClose={() => setEditAsset(null)}
+            onSuccess={() => setEditAsset(null)}
+          />
+        )}
+      </Modal>
+
+      {/* QR Code Modal */}
       {selectedQRAsset && (
         <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />
       )}

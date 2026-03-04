@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PurchaseRequestService from '../services/purchaseRequestService';
-import PurchaseOrderService from '../services/purchaseOrderService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
 
@@ -16,7 +15,6 @@ export const useWMS = () => {
 
 export const WMSProvider = ({ children }) => {
   const [purchaseRequests, setPurchaseRequests] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,15 +32,13 @@ export const WMSProvider = ({ children }) => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [prs, pos, inv, ast] = await Promise.all([
+      const [prs, inv, ast] = await Promise.all([
         PurchaseRequestService.getAll(),
-        PurchaseOrderService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
       ]);
       
       setPurchaseRequests(prs);
-      setPurchaseOrders(pos);
       setInventory(inv);
       setAssets(ast);
     } catch (error) {
@@ -87,41 +83,7 @@ export const WMSProvider = ({ children }) => {
     return success;
   };
 
-  // Purchase Order Functions
-  const createPO = async (poData) => {
-    const newPO = await PurchaseOrderService.create({
-      ...poData,
-      createdBy: currentUser.name
-    });
-    if (newPO) {
-      // Refresh all POs to ensure sync
-      const allPOs = await PurchaseOrderService.getAll();
-      setPurchaseOrders(allPOs);
-    }
-    return newPO;
-  };
-
-  const updatePO = async (id, updates) => {
-    const updatedPO = await PurchaseOrderService.update(id, {
-      ...updates,
-      updatedBy: currentUser.name
-    });
-    if (updatedPO) {
-      setPurchaseOrders(prev =>
-        prev.map(po => po.id === id ? updatedPO : po)
-      );
-    }
-    return updatedPO;
-  };
-
-  const deletePO = async (id) => {
-    const success = await PurchaseOrderService.delete(id);
-    if (success) {
-      setPurchaseOrders(prev => prev.filter(po => po.id !== id));
-    }
-    return success;
-  };
-
+  
   // Inventory Functions
   const createInventoryItem = async (itemData) => {
     const newItem = await InventoryService.create({
@@ -227,7 +189,6 @@ export const WMSProvider = ({ children }) => {
     return {
       totalInventoryItems: inventory.length,
       pendingPRs: purchaseRequests.filter(pr => pr.status === 'Submitted' || pr.status === 'For Canvass').length,
-      activePOs: purchaseOrders.filter(po => po.status === 'Pending' || po.status === 'Approved').length,
       assetsTagged: assets.filter(asset => asset.isTagged).length,
       lowStockItems: inventory.filter(item => item.quantity <= item.minStockLevel && item.quantity > 0).length,
       outOfStockItems: inventory.filter(item => item.quantity === 0).length
@@ -237,7 +198,6 @@ export const WMSProvider = ({ children }) => {
   const value = {
     // State
     purchaseRequests,
-    purchaseOrders,
     inventory,
     assets,
     loading,
@@ -247,9 +207,6 @@ export const WMSProvider = ({ children }) => {
     createPR,
     updatePR,
     deletePR,
-    createPO,
-    updatePO,
-    deletePO,
     createInventoryItem,
     updateInventoryItem,
     adjustInventoryQuantity,

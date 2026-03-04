@@ -15,7 +15,6 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     totalInventoryItems: 0,
     pendingPRs: 0,
-    activePOs: 0,
     assetsTagged: 0,
     lowStockItems: 0,
     outOfStockItems: 0
