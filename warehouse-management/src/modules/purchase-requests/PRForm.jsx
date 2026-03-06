@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const PRForm = ({ onClose, onSuccess }) => {
   const { createPR } = useWMS();
+  const { units } = useSettings();
   const [formData, setFormData] = useState({
     department: '',
-    requesterLastName: '',
-    requesterFirstName: '',
     notes: '',
-    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }],
+    items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }]
   });
   const [loading, setLoading] = useState(false);
 
@@ -94,7 +94,9 @@ const PRForm = ({ onClose, onSuccess }) => {
   </div>
 
   <div className="space-y-3">
+    {formData.items.map((item, index) => (
       <div
+        key={index}
         className="grid grid-cols-8 gap-3 items-start p-3 border border-gray-200 rounded-lg"
       >
         <div className="col-span-4">
@@ -114,6 +116,7 @@ const PRForm = ({ onClose, onSuccess }) => {
           />
         </div>
       </div>
+    ))}
   </div>
 </div>
 
@@ -153,19 +156,18 @@ const PRForm = ({ onClose, onSuccess }) => {
                 />
               </div>
               <div className="col-span-2">
-                <input
-                  type="text"
-                  placeholder="Unit"
+                <select
                   value={item.unit}
-                  onChange={(e) => {
-                  // Allow only letters and spaces
-                  const textOnly = e.target.value.replace(/[^A-Za-z\s]/g, "");
-                  handleItemChange(index, "unit", textOnly);
-    }}
-    required
-    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-  />
-</div>
+                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Unit</option>
+                  {units.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
 
               <div className="col-span-2">
                 <input

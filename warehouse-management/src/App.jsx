@@ -1,12 +1,15 @@
 import React from 'react';
 import { WMSProvider } from './context/WMSContext';
+import { SettingsProvider } from './context/SettingsContext';
 import Layout from './components/layout/Layout';
 
 function App() {
   return (
-    <WMSProvider>
-      <Layout />
-    </WMSProvider>
+    <SettingsProvider>
+      <WMSProvider>
+        <Layout />
+      </WMSProvider>
+    </SettingsProvider>
   );
 }
 
