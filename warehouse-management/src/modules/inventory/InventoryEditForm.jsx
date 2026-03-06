@@ -10,9 +10,9 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
     quantity: item.quantity || 0,
     unit: item.unit || '',
     location: item.location || '',
-    minStockLevel: item.min_stock_level || item.minStockLevel || 0,
-    maxStockLevel: item.max_stock_level || item.maxStockLevel || 0,
-    unitPrice: item.unit_price || item.unitPrice || 0,
+    min_stock_level: item.min_stock_level || item.minStockLevel || 0,
+    max_stock_level: item.max_stock_level || item.maxStockLevel || 0,
+    unit_price: item.unit_price || item.unitPrice || 0,
     supplier: item.supplier || ''
   });
   const [loading, setLoading] = useState(false);
