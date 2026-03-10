@@ -95,7 +95,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card title="Recent Activity" className="lg:col-span-2">
           <div className="text-center py-12 text-gray-400">
             <Clock size={48} className="mx-auto mb-3 opacity-50" />
@@ -152,20 +152,6 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        <Card title="System Health">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <span className="text-sm font-medium text-green-900">Database Status</span>
-              <span className="text-sm font-semibold text-green-600">● Online</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm font-medium text-blue-900">Last Sync</span>
-              <span className="text-sm font-semibold text-blue-600">Just now</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
       {/* Modals */}
       <Modal
         isOpen={isPRModalOpen}
@@ -202,6 +188,7 @@ const Dashboard = () => {
           onSuccess={handleQRSuccess}
         />
       </Modal>
+    </div>
     </div>
   );
 };
