@@ -2,96 +2,93 @@ import React, { useState } from 'react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useSettings } from '../../context/SettingsContext';
-import { Plus, X, Tag, Ruler, Pencil, Check, Ban } from 'lucide-react';
+import { Plus, X, Tag, Ruler, Building2, Pencil, Check, Ban, Loader } from 'lucide-react';
 
-// Individual editable item row
-const ListItem = ({ item, onEdit, onRemove }) => {
+// Single editable row
+const ListItem = ({ row, onEdit, onRemove }) => {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(item);
-  const [error, setError] = useState('');
+  const [val, setVal] = useState(row.value);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    const trimmed = value.trim();
-    if (!trimmed) { setError('Cannot be empty.'); return; }
-    onEdit(item, trimmed);
+  const handleSave = async () => {
+    if (!val.trim() || val.trim() === row.value) { setEditing(false); setVal(row.value); return; }
+    setSaving(true);
+    await onEdit(row.id, val.trim());
+    setSaving(false);
     setEditing(false);
-    setError('');
   };
 
-  const handleCancel = () => {
-    setValue(item);
-    setEditing(false);
-    setError('');
-  };
-
-  const handleKey = (e) => {
-    if (e.key === 'Enter') handleSave();
-    if (e.key === 'Escape') handleCancel();
-  };
+  const handleCancel = () => { setEditing(false); setVal(row.value); };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg group transition-colors">
+    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg group transition-colors">
       {editing ? (
-        <>
-          <input
-            autoFocus
-            type="text"
-            value={value}
-            onChange={(e) => { setValue(e.target.value); setError(''); }}
-            onKeyDown={handleKey}
-            className="flex-1 px-2 py-0.5 text-sm border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-          />
-          {error && <span className="text-xs text-red-500">{error}</span>}
-          <button onClick={handleSave} title="Save" className="p-1 hover:bg-green-100 rounded transition-colors">
-            <Check size={13} className="text-green-600" />
-          </button>
-          <button onClick={handleCancel} title="Cancel" className="p-1 hover:bg-gray-200 rounded transition-colors">
-            <Ban size={13} className="text-gray-500" />
-          </button>
-        </>
+        <input
+          autoFocus
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
+          className="flex-1 text-sm px-2 py-0.5 border border-blue-400 rounded focus:outline-none mr-2"
+        />
       ) : (
-        <>
-          <span className="flex-1 text-sm text-gray-700">{item}</span>
-          <button
-            onClick={() => setEditing(true)}
-            title="Edit"
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-100 rounded transition-all"
-          >
-            <Pencil size={13} className="text-blue-500" />
-          </button>
-          <button
-            onClick={() => onRemove(item)}
-            title="Remove"
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
-          >
-            <X size={13} className="text-red-500" />
-          </button>
-        </>
+        <span className="text-sm text-gray-700 flex-1">{row.value}</span>
       )}
+
+      <div className="flex gap-1 items-center">
+        {saving ? (
+          <Loader size={13} className="text-gray-400 animate-spin" />
+        ) : editing ? (
+          <>
+            <button onClick={handleSave} title="Save" className="p-1 hover:bg-green-100 rounded transition-colors">
+              <Check size={13} className="text-green-600" />
+            </button>
+            <button onClick={handleCancel} title="Cancel" className="p-1 hover:bg-gray-200 rounded transition-colors">
+              <Ban size={13} className="text-gray-500" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setEditing(true)}
+              title="Edit"
+              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-blue-100 rounded transition-all"
+            >
+              <Pencil size={13} className="text-blue-500" />
+            </button>
+            <button
+              onClick={() => onRemove(row.id)}
+              title="Remove"
+              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
+            >
+              <X size={13} className="text-red-500" />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 };
 
-// Reusable list manager panel
-const ListManager = ({ title, icon: Icon, color, items, onAdd, onEdit, onRemove, placeholder }) => {
+// List manager panel
+const ListManager = ({ title, icon: Icon, color, rows, onAdd, onEdit, onRemove, placeholder, loading }) => {
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const trimmed = inputValue.trim();
     if (!trimmed) { setError('Please enter a value.'); return; }
-    if (items.map(i => i.toLowerCase()).includes(trimmed.toLowerCase())) {
-      setError('This item already exists.');
-      return;
+    if (rows.map(r => r.value.toLowerCase()).includes(trimmed.toLowerCase())) {
+      setError('This item already exists.'); return;
     }
-    onAdd(trimmed);
+    setAdding(true);
+    await onAdd(trimmed);
     setInputValue('');
     setError('');
+    setAdding(false);
   };
 
-  const handleKey = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
-  };
+  const handleKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } };
 
   return (
     <Card>
@@ -101,43 +98,40 @@ const ListManager = ({ title, icon: Icon, color, items, onAdd, onEdit, onRemove,
         </div>
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
         <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-          {items.length} items
+          {rows.length} items
         </span>
       </div>
 
-      {/* Add input */}
-      <div className="flex gap-2 mb-1">
+      <div className="flex gap-2 mb-3">
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); setError(''); }}
+          onChange={e => { setInputValue(e.target.value); setError(''); }}
           onKeyDown={handleKey}
           placeholder={placeholder}
           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
           onClick={handleAdd}
-          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          disabled={adding}
+          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
-          <Plus size={14} /> Add
+          {adding ? <Loader size={14} className="animate-spin" /> : <Plus size={14} />}
+          Add
         </button>
       </div>
-      {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
-      <p className="text-xs text-gray-400 mb-3">Hover an item to edit or remove it.</p>
-
-      {/* Items list */}
-      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-        {items.length === 0 ? (
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <Loader size={20} className="animate-spin text-gray-400" />
+          </div>
+        ) : rows.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-4">No items yet. Add one above.</p>
         ) : (
-          items.map((item) => (
-            <ListItem
-              key={item}
-              item={item}
-              onEdit={onEdit}
-              onRemove={onRemove}
-            />
+          rows.map(row => (
+            <ListItem key={row.id} row={row} onEdit={onEdit} onRemove={onRemove} />
           ))
         )}
       </div>
@@ -147,9 +141,10 @@ const ListManager = ({ title, icon: Icon, color, items, onAdd, onEdit, onRemove,
 
 const Settings = () => {
   const {
-    categories, units,
+    categoryRows, unitRows, deptRows, loading,
     addCategory, editCategory, removeCategory,
-    addUnit, editUnit, removeUnit
+    addUnit, editUnit, removeUnit,
+    addDepartment, editDepartment, removeDepartment,
   } = useSettings();
 
   return (
@@ -159,28 +154,41 @@ const Settings = () => {
       <div>
         <h2 className="text-base font-semibold text-gray-700 mb-1">List Configuration</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Manage the dropdown options used in Purchase Requests and Inventory forms. Changes apply immediately.
+          Manage dropdown options used across PR and Inventory modules. All changes are saved to the database and sync immediately.
         </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <ListManager
             title="Item Categories"
             icon={Tag}
             color="bg-blue-600"
-            items={categories}
+            rows={categoryRows}
             onAdd={addCategory}
             onEdit={editCategory}
             onRemove={removeCategory}
             placeholder="e.g., Electronics, Furniture..."
+            loading={loading}
           />
           <ListManager
             title="Units of Measure"
             icon={Ruler}
             color="bg-purple-600"
-            items={units}
+            rows={unitRows}
             onAdd={addUnit}
             onEdit={editUnit}
             onRemove={removeUnit}
             placeholder="e.g., pcs, box, kg..."
+            loading={loading}
+          />
+          <ListManager
+            title="Departments"
+            icon={Building2}
+            color="bg-green-600"
+            rows={deptRows}
+            onAdd={addDepartment}
+            onEdit={editDepartment}
+            onRemove={removeDepartment}
+            placeholder="e.g., IT, Finance, HR..."
+            loading={loading}
           />
         </div>
       </div>
@@ -195,19 +203,13 @@ const Settings = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
-                <input
-                  type="text"
-                  placeholder="Global Officium Limited Inc."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" placeholder="Global Officium Limited Inc."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">System Email</label>
-                <input
-                  type="email"
-                  placeholder="system@goli.com"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="email" placeholder="system@goli.com"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Time Zone</label>
@@ -246,11 +248,8 @@ const Settings = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
-                <input
-                  type="number"
-                  placeholder="30"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="number" placeholder="30"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password Policy</label>
@@ -279,9 +278,7 @@ const Settings = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Auto Backup Frequency</label>
                 <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>Daily</option>
-                  <option>Weekly</option>
-                  <option>Monthly</option>
+                  <option>Daily</option><option>Weekly</option><option>Monthly</option>
                 </select>
               </div>
               <div>

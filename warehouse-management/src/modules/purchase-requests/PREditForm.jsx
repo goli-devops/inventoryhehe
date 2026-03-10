@@ -15,7 +15,7 @@ const PAYMENT_TERMS = [
 
 const PREditForm = ({ pr, onClose, onSuccess }) => {
   const { updatePR } = useWMS();
-  const { units } = useSettings();
+  const { units, departments } = useSettings();
   const [formData, setFormData] = useState({
     department: pr.department || '',
     supplier: pr.supplier || '',
@@ -91,12 +91,9 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Department</option>
-            <option value="IT">IT</option>
-            <option value="Finance">Finance</option>
-            <option value="Operations">Operations</option>
-            <option value="HR">HR</option>
-            <option value="Marketing">Marketing</option>
-            <option value="Sales">Sales</option>
+            {departments.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
         </div>
 

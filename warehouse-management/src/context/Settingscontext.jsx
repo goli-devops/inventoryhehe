@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import SettingsService from '../services/settingsService';
 
 const SettingsContext = createContext();
 
@@ -9,86 +10,114 @@ export const useSettings = () => {
 };
 
 const DEFAULT_CATEGORIES = [
-  'Electronics',
-  'Office Supplies',
-  'Furniture',
-  'Hardware',
-  'Software',
-  'Consumables',
-  'Network Equipment',
-  'Other',
+  'Electronics', 'Office Supplies', 'Furniture', 'Hardware',
+  'Software', 'Consumables', 'Network Equipment', 'Other',
 ];
-
 const DEFAULT_UNITS = [
-  'pcs',
-  'box',
-  'set',
-  'pack',
-  'roll',
-  'ream',
-  'unit',
-  'kg',
-  'liter',
-  'meter',
+  'pcs', 'box', 'set', 'pack', 'roll', 'ream', 'unit', 'kg', 'liter', 'meter',
 ];
-
-const load = (key, fallback) => {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : fallback;
-  } catch {
-    return fallback;
-  }
-};
+const DEFAULT_DEPARTMENTS = [
+  'Finance', 'HR', 'IT', 'Marketing', 'Operations', 'Sales',
+];
 
 export const SettingsProvider = ({ children }) => {
-  const [categories, setCategories] = useState(() => load('wms_categories', DEFAULT_CATEGORIES));
-  const [units, setUnits] = useState(() => load('wms_units', DEFAULT_UNITS));
+  // Each item: { id, type, value }
+  const [categoryRows, setCategoryRows] = useState([]);
+  const [unitRows, setUnitRows]         = useState([]);
+  const [deptRows, setDeptRows]         = useState([]);
+  const [loading, setLoading]           = useState(true);
 
-  useEffect(() => { localStorage.setItem('wms_categories', JSON.stringify(categories)); }, [categories]);
-  useEffect(() => { localStorage.setItem('wms_units', JSON.stringify(units)); }, [units]);
+  // Derived plain arrays consumed by forms
+  const categories  = categoryRows.map(r => r.value);
+  const units       = unitRows.map(r => r.value);
+  const departments = deptRows.map(r => r.value);
 
-  const addCategory = (name) => {
-    const trimmed = name.trim();
-    if (trimmed && !categories.map(c => c.toLowerCase()).includes(trimmed.toLowerCase())) {
-      setCategories(prev => [...prev, trimmed].sort());
+  // Load all configs from Supabase once on mount
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Seed defaults if tables are empty
+      await Promise.all([
+        SettingsService.seedDefaults('category',   DEFAULT_CATEGORIES),
+        SettingsService.seedDefaults('unit',        DEFAULT_UNITS),
+        SettingsService.seedDefaults('department',  DEFAULT_DEPARTMENTS),
+      ]);
+
+      const all = await SettingsService.getAll();
+      setCategoryRows(all.filter(r => r.type === 'category'));
+      setUnitRows(all.filter(r => r.type === 'unit'));
+      setDeptRows(all.filter(r => r.type === 'department'));
+    } catch (err) {
+      console.error('Error loading settings:', err);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ── Categories ─────────────────────────────────────────────────────────────
+  const addCategory = async (value) => {
+    if (categories.map(c => c.toLowerCase()).includes(value.trim().toLowerCase())) return;
+    const row = await SettingsService.add('category', value);
+    if (row) setCategoryRows(prev => [...prev, row].sort((a, b) => a.value.localeCompare(b.value)));
   };
 
-  const editCategory = (oldName, newName) => {
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed.toLowerCase() === oldName.toLowerCase()) return;
-    if (categories.map(c => c.toLowerCase()).includes(trimmed.toLowerCase())) return;
-    setCategories(prev => prev.map(c => c === oldName ? trimmed : c).sort());
+  const editCategory = async (id, newValue) => {
+    const row = await SettingsService.update(id, newValue);
+    if (row) setCategoryRows(prev => prev.map(r => r.id === id ? row : r).sort((a, b) => a.value.localeCompare(b.value)));
   };
 
-  const removeCategory = (name) => {
-    setCategories(prev => prev.filter(c => c !== name));
+  const removeCategory = async (id) => {
+    const ok = await SettingsService.remove(id);
+    if (ok) setCategoryRows(prev => prev.filter(r => r.id !== id));
   };
 
-  const addUnit = (name) => {
-    const trimmed = name.trim();
-    if (trimmed && !units.map(u => u.toLowerCase()).includes(trimmed.toLowerCase())) {
-      setUnits(prev => [...prev, trimmed].sort());
-    }
+  // ── Units ──────────────────────────────────────────────────────────────────
+  const addUnit = async (value) => {
+    if (units.map(u => u.toLowerCase()).includes(value.trim().toLowerCase())) return;
+    const row = await SettingsService.add('unit', value);
+    if (row) setUnitRows(prev => [...prev, row].sort((a, b) => a.value.localeCompare(b.value)));
   };
 
-  const editUnit = (oldName, newName) => {
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed.toLowerCase() === oldName.toLowerCase()) return;
-    if (units.map(u => u.toLowerCase()).includes(trimmed.toLowerCase())) return;
-    setUnits(prev => prev.map(u => u === oldName ? trimmed : u).sort());
+  const editUnit = async (id, newValue) => {
+    const row = await SettingsService.update(id, newValue);
+    if (row) setUnitRows(prev => prev.map(r => r.id === id ? row : r).sort((a, b) => a.value.localeCompare(b.value)));
   };
 
-  const removeUnit = (name) => {
-    setUnits(prev => prev.filter(u => u !== name));
+  const removeUnit = async (id) => {
+    const ok = await SettingsService.remove(id);
+    if (ok) setUnitRows(prev => prev.filter(r => r.id !== id));
+  };
+
+  // ── Departments ────────────────────────────────────────────────────────────
+  const addDepartment = async (value) => {
+    if (departments.map(d => d.toLowerCase()).includes(value.trim().toLowerCase())) return;
+    const row = await SettingsService.add('department', value);
+    if (row) setDeptRows(prev => [...prev, row].sort((a, b) => a.value.localeCompare(b.value)));
+  };
+
+  const editDepartment = async (id, newValue) => {
+    const row = await SettingsService.update(id, newValue);
+    if (row) setDeptRows(prev => prev.map(r => r.id === id ? row : r).sort((a, b) => a.value.localeCompare(b.value)));
+  };
+
+  const removeDepartment = async (id) => {
+    const ok = await SettingsService.remove(id);
+    if (ok) setDeptRows(prev => prev.filter(r => r.id !== id));
   };
 
   return (
     <SettingsContext.Provider value={{
-      categories, units,
+      // Plain value arrays for dropdowns
+      categories, units, departments,
+      // Full rows (with id) for the Settings manager
+      categoryRows, unitRows, deptRows,
+      loading,
+      // Actions
       addCategory, editCategory, removeCategory,
-      addUnit, editUnit, removeUnit
+      addUnit, editUnit, removeUnit,
+      addDepartment, editDepartment, removeDepartment,
     }}>
       {children}
     </SettingsContext.Provider>
