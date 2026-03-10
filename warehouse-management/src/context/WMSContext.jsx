@@ -83,7 +83,6 @@ export const WMSProvider = ({ children }) => {
     return success;
   };
 
-
   // Inventory Functions
   const createInventoryItem = async (itemData) => {
     const newItem = await InventoryService.create({

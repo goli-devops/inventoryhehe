@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const InventoryEditForm = ({ item, onClose, onSuccess }) => {
   const { updateInventoryItem } = useWMS();
+  const { categories, units } = useSettings();
   const [formData, setFormData] = useState({
     description: item.description || '',
     category: item.category || '',
@@ -38,7 +40,15 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
       else if (formData.quantity <= formData.minStockLevel) status = 'Low Stock';
 
       const result = await updateInventoryItem(item.id, {
-        ...formData,
+        description: formData.description,
+        category: formData.category,
+        quantity: formData.quantity,
+        unit: formData.unit,
+        location: formData.location,
+        supplier: formData.supplier,
+        minStockLevel: formData.minStockLevel,
+        maxStockLevel: formData.maxStockLevel,
+        unitPrice: formData.unitPrice,
         status
       });
       
@@ -87,13 +97,9 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Category</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Office Supplies">Office Supplies</option>
-            <option value="Furniture">Furniture</option>
-            <option value="Hardware">Hardware</option>
-            <option value="Software">Software</option>
-            <option value="Consumables">Consumables</option>
-            <option value="Other">Other</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 
@@ -102,14 +108,18 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Unit <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <select
             name="unit"
             value={formData.unit}
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
+            <option value="">Select Unit</option>
+            {units.map(u => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
         </div>
 
         {/* Quantity */}

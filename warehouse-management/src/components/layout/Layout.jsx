@@ -19,8 +19,6 @@ const Layout = () => {
         return <Dashboard />;
       case 'pr':
         return <PurchaseRequests />;
-      case 'po':
-        return <PurchaseOrders />;
       case 'inventory':
         return <Inventory />;
       case 'assets':

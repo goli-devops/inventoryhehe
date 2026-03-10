@@ -57,7 +57,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card padding="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -124,7 +124,7 @@ const Dashboard = () => {
               className="w-full justify-center"
               onClick={() => setIsQRModalOpen(true)}
             >
-              Add New Asset
+              Generate QR Code
             </Button>
             <Button 
               variant="secondary" 
@@ -152,6 +152,18 @@ const Dashboard = () => {
           </div>
         </Card>
 
+        <Card title="System Health">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <span className="text-sm font-medium text-green-900">Database Status</span>
+              <span className="text-sm font-semibold text-green-600">● Online</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <span className="text-sm font-medium text-blue-900">Last Sync</span>
+              <span className="text-sm font-semibold text-blue-600">Just now</span>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Modals */}

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const InventoryForm = ({ onClose, onSuccess }) => {
   const { createInventoryItem } = useWMS();
+  const { categories, units } = useSettings();
   const [formData, setFormData] = useState({
     description: '',
     category: '',
@@ -79,10 +81,9 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Category</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Office Supplies">Office Supplies</option>
-            <option value="Hardware">Hardware</option>
-            <option value="Other">Other</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 
@@ -91,15 +92,18 @@ const InventoryForm = ({ onClose, onSuccess }) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Unit <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <select
             name="unit"
             value={formData.unit}
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., pcs, box, set"
-          />
+          >
+            <option value="">Select Unit</option>
+            {units.map(u => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
         </div>
 
         {/* Quantity */}
