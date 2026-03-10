@@ -200,7 +200,7 @@ const PRForm = ({ onClose, onSuccess }) => {
       {/* Notes */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Notes
+          Specification/Notes
         </label>
         <textarea
           name="notes"

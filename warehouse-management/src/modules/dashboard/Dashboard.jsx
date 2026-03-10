@@ -5,59 +5,28 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { useWMS } from '../../context/WMSContext';
 
-// Import forms
 import PRForm from '../purchase-requests/PRForm';
 import InventoryForm from '../inventory/InventoryForm';
 import AssetForm from '../assets/AssetForm';
 
 const Dashboard = () => {
   const { getStats, refreshData } = useWMS();
-  const [stats, setStats] = useState({
-    totalInventoryItems: 0,
-    pendingPRs: 0,
-    assetsTagged: 0,
-    lowStockItems: 0,
-    outOfStockItems: 0
-  });
 
-  // Modal states
+  // Derive stats directly — getStats is memoized in context so this is safe
+  const stats = getStats();
+
   const [isPRModalOpen, setIsPRModalOpen] = useState(false);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
-  // Update stats when component mounts and when data changes
+  // Refresh data once when dashboard mounts — empty deps means this runs exactly once
   useEffect(() => {
-    const updateStats = () => {
-      const currentStats = getStats();
-      setStats(currentStats);
-    };
-    
-    updateStats();
-    // Refresh data every time we come back to dashboard
     refreshData();
-  }, [getStats, refreshData]);
-
-  const handlePRSuccess = () => {
-    console.log('PR created successfully from dashboard!');
-    const currentStats = getStats();
-    setStats(currentStats);
-  };
-
-  const handleReceiveSuccess = () => {
-    console.log('Items received successfully!');
-    const currentStats = getStats();
-    setStats(currentStats);
-  };
-
-  const handleQRSuccess = () => {
-    console.log('Asset with QR code created successfully!');
-    const currentStats = getStats();
-    setStats(currentStats);
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card padding="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -93,9 +62,21 @@ const Dashboard = () => {
             </div>
           </div>
         </Card>
+
+        <Card padding="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Low Stock Items</p>
+              <p className="text-3xl font-bold text-orange-600">{stats.lowStockItems}</p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Package className="text-orange-600" size={24} />
+            </div>
+          </div>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="Recent Activity" className="lg:col-span-2">
           <div className="text-center py-12 text-gray-400">
             <Clock size={48} className="mx-auto mb-3 opacity-50" />
@@ -105,29 +86,29 @@ const Dashboard = () => {
 
         <Card title="Quick Actions">
           <div className="space-y-3">
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               className="w-full justify-center"
               onClick={() => setIsPRModalOpen(true)}
             >
               Create Purchase Request
             </Button>
-            <Button 
-              variant="success" 
+            <Button
+              variant="success"
               className="w-full justify-center"
               onClick={() => setIsReceiveModalOpen(true)}
             >
               Receive Items
             </Button>
-            <Button 
-              variant="purple" 
+            <Button
+              variant="purple"
               className="w-full justify-center"
               onClick={() => setIsQRModalOpen(true)}
             >
-              Generate QR Code
+              Add New Asset
             </Button>
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               className="w-full justify-center"
               onClick={() => alert('Export Report feature coming soon!')}
             >
@@ -137,7 +118,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Additional Stats Row */}
+      {/* Inventory Alerts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="Inventory Alerts">
           <div className="space-y-3">
@@ -151,44 +132,20 @@ const Dashboard = () => {
             </div>
           </div>
         </Card>
+      </div>
 
       {/* Modals */}
-      <Modal
-        isOpen={isPRModalOpen}
-        onClose={() => setIsPRModalOpen(false)}
-        title="New Purchase Request"
-        size="lg"
-      >
-        <PRForm
-          onClose={() => setIsPRModalOpen(false)}
-          onSuccess={handlePRSuccess}
-        />
+      <Modal isOpen={isPRModalOpen} onClose={() => setIsPRModalOpen(false)} title="New Purchase Request" size="lg">
+        <PRForm onClose={() => setIsPRModalOpen(false)} onSuccess={() => setIsPRModalOpen(false)} />
       </Modal>
 
-      <Modal
-        isOpen={isReceiveModalOpen}
-        onClose={() => setIsReceiveModalOpen(false)}
-        title="Receive Inventory Items"
-        size="lg"
-      >
-        <InventoryForm
-          onClose={() => setIsReceiveModalOpen(false)}
-          onSuccess={handleReceiveSuccess}
-        />
+      <Modal isOpen={isReceiveModalOpen} onClose={() => setIsReceiveModalOpen(false)} title="Receive Inventory Items" size="lg">
+        <InventoryForm onClose={() => setIsReceiveModalOpen(false)} onSuccess={() => setIsReceiveModalOpen(false)} />
       </Modal>
 
-      <Modal
-        isOpen={isQRModalOpen}
-        onClose={() => setIsQRModalOpen(false)}
-        title="Add New Asset (Auto-Generate QR)"
-        size="lg"
-      >
-        <AssetForm
-          onClose={() => setIsQRModalOpen(false)}
-          onSuccess={handleQRSuccess}
-        />
+      <Modal isOpen={isQRModalOpen} onClose={() => setIsQRModalOpen(false)} title="Add New Asset (Auto-Generate QR)" size="lg">
+        <AssetForm onClose={() => setIsQRModalOpen(false)} onSuccess={() => setIsQRModalOpen(false)} />
       </Modal>
-    </div>
     </div>
   );
 };
