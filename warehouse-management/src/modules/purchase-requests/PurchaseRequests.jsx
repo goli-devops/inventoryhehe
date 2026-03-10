@@ -75,6 +75,18 @@ const PurchaseRequests = () => {
                   Department
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Supplier
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Company
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contact Person
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Terms
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Items
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -88,7 +100,7 @@ const PurchaseRequests = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {!purchaseRequests || purchaseRequests.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan="10" className="px-6 py-12 text-center text-gray-400">
                     <FileText size={48} className="mx-auto mb-3 opacity-50" />
                     <p>No purchase requests found</p>
                     <p className="text-sm mt-1">Click "New Purchase Request" to create one</p>
@@ -105,6 +117,18 @@ const PurchaseRequests = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {pr.department || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pr.supplier || <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pr.company_name || pr.companyName || <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pr.contact_person || pr.contactPerson || <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {pr.terms || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {pr.items ? pr.items.length : 0} item(s)

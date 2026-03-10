@@ -2,11 +2,26 @@ import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
+
+const PAYMENT_TERMS = [
+  'Cash on Delivery',
+  'Net 15',
+  'Net 30',
+  'Net 60',
+  '50% Down / 50% on Delivery',
+  'Full Payment in Advance',
+];
 
 const PREditForm = ({ pr, onClose, onSuccess }) => {
   const { updatePR } = useWMS();
+  const { units } = useSettings();
   const [formData, setFormData] = useState({
     department: pr.department || '',
+    supplier: pr.supplier || '',
+    companyName: pr.company_name || pr.companyName || '',
+    contactPerson: pr.contact_person || pr.contactPerson || '',
+    terms: pr.terms || '',
     status: pr.status || 'Submitted',
     notes: pr.notes || '',
     items: pr.items || [{ description: '', quantity: 1, unit: '', estimatedPrice: 0 }]
@@ -43,12 +58,8 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const result = await updatePR(pr.id, {
-        ...formData,
-        // updatedBy will be automatically added by WMSContext
-      });
+      const result = await updatePR(pr.id, formData);
       if (result) {
         onSuccess && onSuccess(result);
         onClose();
@@ -65,46 +76,116 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Department */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Department <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="department"
-          value={formData.department}
-          onChange={handleInputChange}
-          required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select Department</option>
-          <option value="IT">IT</option>
-          <option value="Finance">Finance</option>
-          <option value="Operations">Operations</option>
-          <option value="HR">HR</option>
-          <option value="Marketing">Marketing</option>
-          <option value="Sales">Sales</option>
-        </select>
+
+      {/* Department + Supplier row */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Department <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="department"
+            value={formData.department}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Department</option>
+            <option value="IT">IT</option>
+            <option value="Finance">Finance</option>
+            <option value="Operations">Operations</option>
+            <option value="HR">HR</option>
+            <option value="Marketing">Marketing</option>
+            <option value="Sales">Sales</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Supplier <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="supplier"
+            value={formData.supplier}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., ABC Trading Co."
+          />
+        </div>
       </div>
 
-      {/* Status */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Status <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="status"
-          value={formData.status}
-          onChange={handleInputChange}
-          required
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="Submitted">Submitted</option>
-          <option value="For Canvass">For Canvass</option>
-          <option value="Approved">Approved</option>
-          <option value="Cancelled">Cancelled</option>
-          <option value="Completed">Completed</option>
-        </select>
+      {/* Terms + Status row */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Payment Terms <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="terms"
+            value={formData.terms}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Payment Terms</option>
+            {PAYMENT_TERMS.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Status <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="status"
+            value={formData.status}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="Submitted">Submitted</option>
+            <option value="For Canvass">For Canvass</option>
+            <option value="Approved">Approved</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Company Name + Contact Person */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Company Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="companyName"
+            value={formData.companyName}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., ABC Trading Corporation"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Contact Person <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="contactPerson"
+            value={formData.contactPerson}
+            onChange={handleInputChange}
+            required
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., Juan dela Cruz"
+          />
+        </div>
       </div>
 
       {/* Items */}
@@ -143,14 +224,17 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
                 />
               </div>
               <div className="col-span-2">
-                <input
-                  type="text"
-                  placeholder="Unit"
+                <select
                   value={item.unit}
                   onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">Unit</option>
+                  {units.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
               </div>
               <div className="col-span-2">
                 <input
@@ -181,9 +265,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Notes
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
         <textarea
           name="notes"
           value={formData.notes}
@@ -196,9 +278,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
+        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={loading}>
           {loading ? 'Updating...' : 'Update Purchase Request'}
         </Button>

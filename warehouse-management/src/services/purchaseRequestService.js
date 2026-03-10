@@ -12,15 +12,14 @@ const PurchaseRequestService = {
   async create(prData) {
     try {
       const prNumber = this.generatePRNumber();
-      const fullName = `${prData.requesterFirstName} ${prData.requesterLastName}`;
-      
       const newPR = {
         pr_number: prNumber,
         department: prData.department,
-        requester_first_name: prData.requesterFirstName || '',
-        requester_last_name: prData.requesterLastName || '',
-        requested_by: fullName,
-        created_by: prData.requestedBy || fullName,
+        supplier: prData.supplier || '',
+        companyName: prData.companyName || '',
+        contactPerson: prData.contactPerson || '',
+        terms: prData.terms || '',
+        requested_by: prData.requestedBy,
         items: prData.items || [],
         status: 'Submitted',
         notes: prData.notes || '',
@@ -28,7 +27,7 @@ const PurchaseRequestService = {
           {
             action: 'Created',
             date: new Date().toISOString(),
-            user: prData.requestedBy || fullName,
+            user: prData.requestedBy,
             status: 'Submitted'
           }
         ]
@@ -87,20 +86,6 @@ const PurchaseRequestService = {
       const existingPR = await this.getById(id);
       if (!existingPR) return null;
 
-      // Build updated data
-      const updateData = { ...updates };
-      
-      // If requester names are provided, update the full name too
-      if (updates.requesterFirstName && updates.requesterLastName) {
-        updateData.requester_first_name = updates.requesterFirstName;
-        updateData.requester_last_name = updates.requesterLastName;
-        updateData.requested_by = `${updates.requesterFirstName} ${updates.requesterLastName}`;
-        
-        // Remove camelCase versions
-        delete updateData.requesterFirstName;
-        delete updateData.requesterLastName;
-      }
-
       const updatedHistory = [
         ...existingPR.history,
         {
@@ -113,12 +98,12 @@ const PurchaseRequestService = {
       ];
 
       // Remove updatedBy from the main update object as it's only for history
-      const { updatedBy, ...dataToUpdate } = updateData;
+      const { updatedBy, ...updateData } = updates;
 
       const { data, error } = await supabase
         .from('purchase_requests')
         .update({
-          ...dataToUpdate,
+          ...updateData,
           history: updatedHistory
         })
         .eq('id', id)

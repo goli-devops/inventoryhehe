@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, User, Package, FileText, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, User, Package, FileText, Clock, ChevronDown, ChevronUp, Truck, CreditCard, Building2, Phone } from 'lucide-react';
 
 const PRDetails = ({ pr }) => {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -38,6 +38,34 @@ const PRDetails = ({ pr }) => {
           <div>
             <p className="text-xs text-gray-500">Department</p>
             <p className="font-semibold text-gray-800">{pr.department}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Truck size={18} className="text-gray-400" />
+          <div>
+            <p className="text-xs text-gray-500">Supplier</p>
+            <p className="font-semibold text-gray-800">{pr.supplier || <span className="text-gray-400">—</span>}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 col-span-2">
+          <CreditCard size={18} className="text-gray-400" />
+          <div>
+            <p className="text-xs text-gray-500">Payment Terms</p>
+            <p className="font-semibold text-gray-800">{pr.terms || <span className="text-gray-400">—</span>}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Building2 size={18} className="text-gray-400" />
+          <div>
+            <p className="text-xs text-gray-500">Company Name</p>
+            <p className="font-semibold text-gray-800">{pr.company_name || pr.companyName || <span className="text-gray-400">—</span>}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Phone size={18} className="text-gray-400" />
+          <div>
+            <p className="text-xs text-gray-500">Contact Person</p>
+            <p className="font-semibold text-gray-800">{pr.contact_person || pr.contactPerson || <span className="text-gray-400">—</span>}</p>
           </div>
         </div>
       </div>
