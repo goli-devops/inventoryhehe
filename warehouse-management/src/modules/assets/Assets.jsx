@@ -5,7 +5,6 @@ import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
 import AssetForm from './AssetForm';
 import AssetEditForm from './AssetEditForm';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 import { useWMS } from '../../context/WMSContext';
 
