@@ -36,6 +36,7 @@ const AssetService = {
         qr_code: qrData.qr_code,
         qr_url: qrData.qr_url,
         is_tagged: true,
+        inventory_item_id: assetData.inventoryItemId || null,
         created_by: assetData.createdBy,
         history: [
           {
