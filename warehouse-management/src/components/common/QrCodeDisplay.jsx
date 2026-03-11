@@ -2,34 +2,51 @@ import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 
 /**
- * QRCodeDisplay
- * Props:
- *  - value      : string to encode (required)
- *  - size       : canvas width/height in px (default 128)
- *  - className  : extra Tailwind classes on the wrapper
+ * Builds a plain-text QR payload from an asset object.
+ * When scanned with any QR reader, it shows the asset info directly —
+ * no URL, no redirect, no internet required.
  */
-const QRCodeDisplay = ({ value, size = 128, className = '' }) => {
+export const buildQRPayload = (asset) => {
+  const id          = asset?.asset_id || asset?.assetID || '';
+  const description = asset?.description || '';
+  const category    = asset?.category || '';
+  const status      = asset?.status || '';
+  const location    = asset?.location || '—';
+  const assignedTo  = asset?.assigned_to || asset?.assignedTo || '—';
+  const serial      = asset?.serial_number || asset?.serialNumber || '—';
+
+  return [
+    '== GOLI ICT ASSET ==',
+    `ID       : ${id}`,
+    `Item     : ${description}`,
+    `Category : ${category}`,
+    `Status   : ${status}`,
+    `Location : ${location}`,
+    `Assigned : ${assignedTo}`,
+    `Serial # : ${serial}`,
+    '====================',
+  ].join('\n');
+};
+
+const QRCodeDisplay = ({ asset, value, size = 5, className = '' }) => {
   const canvasRef = useRef(null);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!value || !canvasRef.current) return;
+  // Accept either a full asset object or a raw value string
+  const payload = asset ? buildQRPayload(asset) : (value || '');
 
-    QRCode.toCanvas(canvasRef.current, value, {
+  useEffect(() => {
+    if (!payload || !canvasRef.current) return;
+    setError(false);
+    QRCode.toCanvas(canvasRef.current, payload, {
       width: size,
       margin: 1,
-      color: {
-        dark: '#1e3a5f',   // dark blue dots — matches brand
-        light: '#ffffff',
-      },
-      errorCorrectionLevel: 'H',
+      color: { dark: '#1e3a5f', light: '#ffffff' },
+      errorCorrectionLevel: 'M', // M is fine for text; H makes it too dense
     }, (err) => {
-      if (err) {
-        console.error('QR generation error:', err);
-        setError(true);
-      }
+      if (err) { console.error('QR generation error:', err); setError(true); }
     });
-  }, [value, size]);
+  }, [payload, size]);
 
   if (error) {
     return (

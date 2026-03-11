@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Filter, Download, Scan } from 'lucide-react';
+import { Plus, Filter, Download, Scan, Eye, Edit, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
@@ -9,15 +9,36 @@ import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 import { useWMS } from '../../context/WMSContext';
 
+const statusClass = (status) => {
+  switch (status) {
+    case 'Available':   return 'bg-green-100 text-green-800';
+    case 'In Use':      return 'bg-blue-100 text-blue-800';
+    case 'Maintenance': return 'bg-yellow-100 text-yellow-800';
+    case 'Repair':      return 'bg-orange-100 text-orange-800';
+    case 'Retired':     return 'bg-gray-100 text-gray-800';
+    default:            return 'bg-gray-100 text-gray-600';
+  }
+};
+
 const Assets = () => {
-  const { assets, getStats } = useWMS();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editAsset, setEditAsset] = useState(null);
+  const { assets, deleteAsset, getStats } = useWMS();
+  const [isAddModalOpen, setIsAddModalOpen]   = useState(false);
+  const [editAsset, setEditAsset]             = useState(null);
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
+  const [deletingId, setDeletingId]           = useState(null);
   const stats = getStats();
 
-  const inUseAssets = assets.filter(a => a.status === 'In Use').length;
+  const inUseAssets       = assets.filter(a => a.status === 'In Use').length;
   const maintenanceAssets = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
+
+  const handleDelete = async (asset) => {
+    const assetID = asset.asset_id || asset.assetID;
+    if (!window.confirm(`Delete asset ${assetID} — "${asset.description}"?\n\nThis cannot be undone.`)) return;
+    setDeletingId(asset.id);
+    const success = await deleteAsset(asset.id);
+    if (!success) alert('Failed to delete asset. Please try again.');
+    setDeletingId(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -29,13 +50,9 @@ const Assets = () => {
           <Button variant="primary" icon={Scan}>
             Scan QR Code
           </Button>
-          <Button variant="outline" icon={Filter}>
-            Filter
-          </Button>
+          <Button variant="outline" icon={Filter}>Filter</Button>
         </div>
-        <Button variant="outline" icon={Download}>
-          Export
-        </Button>
+        <Button variant="outline" icon={Download}>Export</Button>
       </div>
 
       {/* Stats */}
@@ -85,24 +102,18 @@ const Assets = () => {
                 </tr>
               ) : (
                 assets.map((asset) => {
-                  const assetID = asset.asset_id || asset.assetID;
-                  const qrValue = asset.qr_url || asset.qrUrl || `https://wms.goli.com/assets/${assetID}`;
+                  const assetID   = asset.asset_id || asset.assetID;
+                  const isDeleting = deletingId === asset.id;
 
                   return (
-                    <tr key={asset.id} className="hover:bg-gray-50">
+                    <tr key={asset.id} className={`hover:bg-gray-50 transition-colors ${isDeleting ? 'opacity-40' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{assetID}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{asset.description}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.category}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.location || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.assigned_to || asset.assignedTo || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.location || '—'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.assigned_to || asset.assignedTo || '—'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                          ${asset.status === 'Available' ? 'bg-green-100 text-green-800' : ''}
-                          ${asset.status === 'In Use' ? 'bg-blue-100 text-blue-800' : ''}
-                          ${asset.status === 'Maintenance' ? 'bg-yellow-100 text-yellow-800' : ''}
-                          ${asset.status === 'Repair' ? 'bg-orange-100 text-orange-800' : ''}
-                          ${asset.status === 'Retired' ? 'bg-gray-100 text-gray-800' : ''}
-                        `}>
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass(asset.status)}`}>
                           {asset.status}
                         </span>
                       </td>
@@ -113,25 +124,37 @@ const Assets = () => {
                             title="Click to view / print QR"
                             className="hover:opacity-75 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
                           >
-                            <QRCodeDisplay value={qrValue} size={52} />
+                            <QRCodeDisplay asset={asset} size={52} />
                           </button>
                         ) : (
                           <span className="text-gray-400 text-xs">No QR</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => setSelectedQRAsset(asset)}
-                          className="text-blue-600 hover:text-blue-900 mr-3 font-medium"
-                        >
-                          View QR
-                        </button>
-                        <button
-                          onClick={() => setEditAsset(asset)}
-                          className="text-gray-600 hover:text-gray-900 font-medium"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setSelectedQRAsset(asset)}
+                            className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View QR"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => setEditAsset(asset)}
+                            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(asset)}
+                            disabled={isDeleting}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
