@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const AssetForm = ({ onClose, onSuccess }) => {
   const { createAsset } = useWMS();
+  const { categories } = useSettings();
   const [formData, setFormData] = useState({
     description: '',
     category: '',
@@ -79,15 +81,9 @@ const AssetForm = ({ onClose, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Category</option>
-            <option value="Computer">Computer</option>
-            <option value="Laptop">Laptop</option>
-            <option value="Monitor">Monitor</option>
-            <option value="Printer">Printer</option>
-            <option value="Furniture">Furniture</option>
-            <option value="Phone">Phone</option>
-            <option value="Tablet">Tablet</option>
-            <option value="Network Equipment">Network Equipment</option>
-            <option value="Other">Other</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 

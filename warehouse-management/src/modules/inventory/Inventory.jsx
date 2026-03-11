@@ -55,12 +55,6 @@ const Inventory = () => {
           <Button variant="outline" icon={Filter}>
             Filter
           </Button>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option>All Categories</option>
-            <option>Electronics</option>
-            <option>Office Supplies</option>
-            <option>Furniture</option>
-          </select>
         </div>
         <Button variant="outline" icon={Download}>
           Export

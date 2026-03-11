@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const AssetEditForm = ({ asset, onClose, onSuccess }) => {
   const { updateAsset } = useWMS();
+  const { categories } = useSettings();
+
   const [formData, setFormData] = useState({
-    description: asset.description || '',
-    category: asset.category || '',
-    serialNumber: asset.serial_number || asset.serialNumber || '',
-    location: asset.location || '',
-    assignedTo: asset.assigned_to || asset.assignedTo || '',
-    status: asset.status || 'Available',
-    purchaseDate: asset.purchase_date
-      ? new Date(asset.purchase_date).toISOString().split('T')[0]
-      : (asset.purchaseDate || new Date().toISOString().split('T')[0]),
+    description:   asset.description || '',
+    category:      asset.category || '',
+    serialNumber:  asset.serial_number || asset.serialNumber || '',
+    location:      asset.location || '',
+    assignedTo:    asset.assigned_to || asset.assignedTo || '',
+    status:        asset.status || 'Available',
+    purchaseDate:  asset.purchase_date || asset.purchaseDate || new Date().toISOString().split('T')[0],
     purchasePrice: asset.purchase_price || asset.purchasePrice || 0,
-    warranty: asset.warranty || '',
+    warranty:      asset.warranty || '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -34,15 +35,15 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
     setLoading(true);
     try {
       const result = await updateAsset(asset.id, {
-        description: formData.description,
-        category: formData.category,
-        serial_number: formData.serialNumber,
-        location: formData.location,
-        assigned_to: formData.assignedTo || null,
-        status: formData.status,
-        purchase_date: formData.purchaseDate,
+        description:    formData.description,
+        category:       formData.category,
+        serial_number:  formData.serialNumber,
+        location:       formData.location,
+        assigned_to:    formData.assignedTo,
+        status:         formData.status,
+        purchase_date:  formData.purchaseDate,
         purchase_price: formData.purchasePrice,
-        warranty: formData.warranty,
+        warranty:       formData.warranty,
       });
       if (result) {
         onSuccess && onSuccess(result);
@@ -74,11 +75,10 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., Dell Laptop, Office Chair, Printer"
           />
         </div>
 
-        {/* Category */}
+        {/* Category — dynamic from SettingsContext */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Category <span className="text-red-500">*</span>
@@ -91,15 +91,9 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Category</option>
-            <option value="Computer">Computer</option>
-            <option value="Laptop">Laptop</option>
-            <option value="Monitor">Monitor</option>
-            <option value="Printer">Printer</option>
-            <option value="Furniture">Furniture</option>
-            <option value="Phone">Phone</option>
-            <option value="Tablet">Tablet</option>
-            <option value="Network Equipment">Network Equipment</option>
-            <option value="Other">Other</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 
@@ -112,7 +106,6 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
             value={formData.serialNumber}
             onChange={handleInputChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Serial number"
           />
         </div>
 
@@ -188,7 +181,6 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
             min="0"
             step="0.01"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.00"
           />
         </div>
 
@@ -208,11 +200,9 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
+        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        <Button type="submit" variant="purple" disabled={loading}>
+          {loading ? 'Updating...' : 'Update Asset'}
         </Button>
       </div>
     </form>

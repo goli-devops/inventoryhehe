@@ -13,7 +13,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
     unit: item.unit || '',
     location: item.location || '',
     minStockLevel: item.min_stock_level || item.minStockLevel || 0,
-    maxStockLevel: item.max_stock_level || item.maxStockLevel || 0,
+    maxStockLevel: item.max_stock_level || item.max_stock_level || 0,
     unitPrice: item.unit_price || item.unitPrice || '',
     supplier: item.supplier || ''
   });
@@ -26,7 +26,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
 
   const handleNumberChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+    setFormData(prev => ({ ...prev, [name]: parseFloat(value) || '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -203,7 +203,8 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
 
         {/* Supplier */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+
+            <label className="block text-sm font-medium text-gray-700 mb-2">
             Supplier
           </label>
           <input

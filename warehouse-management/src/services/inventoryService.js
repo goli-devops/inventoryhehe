@@ -100,12 +100,24 @@ const InventoryService = {
         }
       ];
 
+      // Explicitly map camelCase → snake_case so Supabase never receives unknown columns
+      const payload = {
+        description:    updates.description    ?? existingItem.description,
+        category:       updates.category       ?? existingItem.category,
+        quantity:       updates.quantity       ?? existingItem.quantity,
+        unit:           updates.unit           ?? existingItem.unit,
+        location:       updates.location       ?? existingItem.location,
+        supplier:       updates.supplier       ?? existingItem.supplier,
+        status:         updates.status         ?? existingItem.status,
+        min_stock_level: updates.minStockLevel  ?? updates.min_stock_level  ?? existingItem.min_stock_level,
+        max_stock_level: updates.maxStockLevel  ?? updates.max_stock_level  ?? existingItem.max_stock_level,
+        unit_price:      updates.unitPrice      ?? updates.unit_price       ?? existingItem.unit_price,
+        history:         updatedHistory,
+      };
+
       const { data, error } = await supabase
         .from('inventory')
-        .update({
-          ...updates,
-          history: updatedHistory
-        })
+        .update(payload)
         .eq('id', id)
         .select()
         .single();

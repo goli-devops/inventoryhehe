@@ -46,9 +46,6 @@ const Assets = () => {
           <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>
             Add Asset
           </Button>
-          <Button variant="primary" icon={Scan}>
-            Scan QR Code
-          </Button>
           <Button variant="outline" icon={Filter}>Filter</Button>
         </div>
         <Button variant="outline" icon={Download}>Export</Button>
