@@ -101,15 +101,23 @@ const InventoryService = {
       ];
 
       // Explicitly map camelCase → snake_case so Supabase never receives unknown columns
+      const newQty        = updates.quantity        ?? existingItem.quantity;
+      const newMinStock   = updates.minStockLevel   ?? updates.min_stock_level  ?? existingItem.min_stock_level;
+
+      // Recalculate status so low/out-of-stock badges always stay in sync
+      let derivedStatus = 'In Stock';
+      if (newQty === 0)              derivedStatus = 'Out of Stock';
+      else if (newQty <= newMinStock) derivedStatus = 'Low Stock';
+
       const payload = {
         description:    updates.description    ?? existingItem.description,
         category:       updates.category       ?? existingItem.category,
-        quantity:       updates.quantity       ?? existingItem.quantity,
+        quantity:       newQty,
         unit:           updates.unit           ?? existingItem.unit,
         location:       updates.location       ?? existingItem.location,
         supplier:       updates.supplier       ?? existingItem.supplier,
-        status:         updates.status         ?? existingItem.status,
-        min_stock_level: updates.minStockLevel  ?? updates.min_stock_level  ?? existingItem.min_stock_level,
+        status:         updates.status         ?? derivedStatus,
+        min_stock_level: newMinStock,
         max_stock_level: updates.maxStockLevel  ?? updates.max_stock_level  ?? existingItem.max_stock_level,
         unit_price:      updates.unitPrice      ?? updates.unit_price       ?? existingItem.unit_price,
         history:         updatedHistory,

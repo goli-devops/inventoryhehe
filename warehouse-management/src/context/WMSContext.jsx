@@ -141,26 +141,36 @@ export const WMSProvider = ({ children }) => {
     return newAsset;
   };
 
-  // Deploy an asset from inventory:
-  // 1. Creates the asset record linked to the inventory item
-  // 2. Deducts 1 unit from inventory quantity atomically
+  // Deploy assets from inventory:
+  // Creates `quantity` individual asset records (each with unique ID + QR),
+  // then deducts that quantity from the inventory item in one call.
   const deployAsset = useCallback(async (assetData) => {
-    const { inventoryItemId, ...rest } = assetData;
+    const { inventoryItemId, quantity = 1, ...rest } = assetData;
+    const qty = Math.max(1, parseInt(quantity) || 1);
 
-    // Step 1 — create the asset, linked to inventory item
-    const newAsset = await AssetService.create({
-      ...rest,
-      inventoryItemId,
-      createdBy: currentUser.name,
-    });
-    if (!newAsset) return null;
+    // Step 1 — create N asset records in parallel
+    const createPromises = Array.from({ length: qty }, (_, i) =>
+      AssetService.create({
+        ...rest,
+        // Append index to serial number for bulk deploys so each is unique
+        serialNumber: qty > 1 && rest.serialNumber
+          ? `${rest.serialNumber}-${String(i + 1).padStart(2, '0')}`
+          : rest.serialNumber,
+        inventoryItemId,
+        createdBy: currentUser.name,
+      })
+    );
 
-    // Step 2 — deduct 1 from the inventory item
+    const results = await Promise.all(createPromises);
+    const allCreated = results.filter(Boolean);
+    if (allCreated.length === 0) return null;
+
+    // Step 2 — deduct qty from inventory in one call
     if (inventoryItemId) {
       const updatedItem = await InventoryService.adjustQuantity(
         inventoryItemId,
-        -1,
-        'Deployed as Asset',
+        -qty,
+        `Deployed as Asset (x${qty})`,
         currentUser.name
       );
       if (updatedItem) {
@@ -170,11 +180,11 @@ export const WMSProvider = ({ children }) => {
       }
     }
 
-    // Step 3 — update assets state
+    // Step 3 — refresh assets state
     const allAssets = await AssetService.getAll();
     setAssets(allAssets);
 
-    return newAsset;
+    return allCreated;
   }, [currentUser.name]);
 
   const updateAsset = async (id, updates) => {
@@ -224,7 +234,10 @@ export const WMSProvider = ({ children }) => {
       totalInventoryItems: inventory.length,
       pendingPRs: purchaseRequests.filter(pr => pr.status === 'Submitted' || pr.status === 'For Canvass').length,
       assetsTagged: assets.filter(asset => asset.isTagged).length,
-      lowStockItems: inventory.filter(item => item.quantity <= item.minStockLevel && item.quantity > 0).length,
+      lowStockItems: inventory.filter(item => {
+        const min = item.min_stock_level ?? item.minStockLevel ?? 0;
+        return item.quantity > 0 && item.quantity <= min;
+      }).length,
       outOfStockItems: inventory.filter(item => item.quantity === 0).length
     };
   };

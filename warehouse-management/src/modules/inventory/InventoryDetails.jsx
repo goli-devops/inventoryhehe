@@ -98,7 +98,7 @@ const InventoryDetails = ({ item }) => {
         <p className="text-sm text-gray-500 mb-2">Status</p>
         <span className={`px-3 py-1 inline-flex text-sm font-semibold rounded-full 
           ${item.status === 'In Stock' ? 'bg-green-100 text-green-800' : ''}
-          ${item.status === 'Low Stock' ? 'bg-orange-100 text-orange-800' : ''}
+          ${item.status === 'Low Stock' ? 'bg-orange-100 text-red-800' : ''}
           ${item.status === 'Out of Stock' ? 'bg-red-100 text-red-800' : ''}
         `}>
           {item.status}

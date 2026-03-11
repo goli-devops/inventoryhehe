@@ -68,7 +68,7 @@ const Inventory = () => {
         </Card>
         <Card padding="p-4">
           <p className="text-sm text-gray-500 mb-1">Low Stock Items</p>
-          <p className="text-2xl font-bold text-orange-600">{stats.lowStockItems}</p>
+          <p className="text-2xl font-bold text-red-600">{stats.lowStockItems}</p>
         </Card>
         <Card padding="p-4">
           <p className="text-sm text-gray-500 mb-1">Out of Stock</p>

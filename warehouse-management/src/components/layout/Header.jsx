@@ -7,7 +7,7 @@ const Header = ({ activeModule }) => {
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
     { id: 'inventory', name: 'Inventory', icon: Package },
-    { id: 'assets', name: 'Asset Tracking', icon: Scan },
+    { id: 'assets', name: 'Assets', icon: Scan },
     { id: 'reports', name: 'Reports & Analytics', icon: BarChart3 },
     { id: 'users', name: 'User Management', icon: Users },
     { id: 'settings', name: 'Settings', icon: Settings },
