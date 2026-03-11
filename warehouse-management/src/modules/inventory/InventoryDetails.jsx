@@ -64,7 +64,8 @@ const InventoryDetails = ({ item }) => {
           <div>
             <p className="text-xs text-gray-500">Unit Price</p>
             <p className="font-semibold text-gray-800">
-              ₱{item.unit_price ? parseFloat(item.unit_price).toFixed(2) : '0'}
+              ₱{item.unit_price ? parseFloat(item.unit_price).toFixed(2) : ''}
+              required
             </p>
           </div>
         </div>
