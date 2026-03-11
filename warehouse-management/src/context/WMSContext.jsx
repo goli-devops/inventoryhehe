@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 import PurchaseRequestService from '../services/purchaseRequestService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
@@ -18,11 +19,17 @@ export const WMSProvider = ({ children }) => {
   const [inventory, setInventory] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [currentUser] = useState({
-    name: 'Ariel Parcon',
-    email: 'ariel@goli.com',
-    role: 'Administrator'
-  });
+  const { user: authUser } = useAuth();
+
+  // Derive a display name from the auth user's metadata or email
+  const currentUser = {
+    name:  authUser?.user_metadata?.full_name
+        || authUser?.user_metadata?.name
+        || authUser?.email?.split('@')[0]
+        || 'System',
+    email: authUser?.email || '',
+    role:  authUser?.user_metadata?.role || 'Staff',
+  };
 
   // Load all data on mount
   useEffect(() => {
@@ -32,7 +39,7 @@ export const WMSProvider = ({ children }) => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [prs, inv, ast] = await Promise.all([
+      const [prs, pos, inv, ast] = await Promise.all([
         PurchaseRequestService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
@@ -230,15 +237,23 @@ export const WMSProvider = ({ children }) => {
 
   // Dashboard Stats
   const getStats = () => {
+    const safePRs       = purchaseRequests  || [];
+    const safeInventory = inventory         || [];
+    const safeAssets    = assets            || [];
+
     return {
-      totalInventoryItems: inventory.length,
-      pendingPRs: purchaseRequests.filter(pr => pr.status === 'Submitted' || pr.status === 'For Canvass').length,
-      assetsTagged: assets.filter(asset => asset.isTagged).length,
-      lowStockItems: inventory.filter(item => {
+      totalInventoryItems: safeInventory.length,
+      pendingPRs: safePRs.filter(pr =>
+        pr.status === 'Submitted' || pr.status === 'For Canvass'
+      ).length,
+      assetsTagged: safeAssets.filter(asset =>
+        asset.is_tagged || asset.isTagged
+      ).length,
+      lowStockItems: safeInventory.filter(item => {
         const min = item.min_stock_level ?? item.minStockLevel ?? 0;
         return item.quantity > 0 && item.quantity <= min;
       }).length,
-      outOfStockItems: inventory.filter(item => item.quantity === 0).length
+      outOfStockItems: safeInventory.filter(item => item.quantity === 0).length,
     };
   };
 

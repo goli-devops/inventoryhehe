@@ -1,7 +1,11 @@
-import React from 'react';
-import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings, Users, Menu, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { LayoutDashboard, FileText, ShoppingCart, Package, Scan, BarChart3, Settings, Users, Menu, X, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen }) => {
+  const { user, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+
   const modules = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
@@ -12,6 +16,19 @@ const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen })
     { id: 'settings', name: 'Settings', icon: Settings },
   ];
 
+  const displayName = user?.user_metadata?.full_name
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || 'User';
+  const displayRole = user?.user_metadata?.role || 'Staff';
+  const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+  const handleSignOut = async () => {
+    if (!window.confirm('Are you sure you want to sign out?')) return;
+    setSigningOut(true);
+    try { await signOut(); } catch (e) { console.error(e); setSigningOut(false); }
+  };
+
   return (
     <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gradient-to-b from-blue-900 to-blue-800 text-white transition-all duration-300 ease-in-out flex flex-col`}>
       {/* Logo */}
@@ -19,11 +36,11 @@ const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen })
         <div className="flex items-center justify-between">
           <div className={`overflow-hidden transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
             <div className="whitespace-nowrap">
-              <h1 className="text-xl font-bold">GOLI WMS</h1>
-              <p className="text-xs text-blue-200">Warehouse Management</p>
+              <h1 className="text-xl font-bold">GOLI - ICT</h1>
+              <p className="text-xs text-blue-200">Warehouse Management System</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-blue-700 rounded-lg transition-colors flex-shrink-0"
           >
@@ -61,20 +78,31 @@ const Sidebar = ({ activeModule, setActiveModule, sidebarOpen, setSidebarOpen })
         </ul>
       </nav>
 
-      {/* User Info */}
-      <div className={`p-4 border-t border-blue-700 overflow-hidden transition-all duration-300 ease-in-out ${
-        sidebarOpen ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'
-      }`}>
+      {/* User info + logout */}
+      <div className="p-4 border-t border-blue-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-sm font-semibold">AP</span>
+          {/* Avatar */}
+          <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-bold">{initials}</span>
           </div>
-          <div className={`flex-1 overflow-hidden transition-all duration-300 ease-in-out ${
-            sidebarOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'
-          }`}>
-            <p className="text-sm font-medium whitespace-nowrap">Ariel Parcon</p>
-            <p className="text-xs text-blue-200 whitespace-nowrap">Administrator</p>
+
+          {/* Name + role */}
+          <div className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${sidebarOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+            <p className="text-sm font-medium whitespace-nowrap truncate">{displayName}</p>
+            <p className="text-xs text-blue-200 whitespace-nowrap">{displayRole}</p>
           </div>
+
+          {/* Logout button */}
+          {sidebarOpen && (
+            <button
+              onClick={handleSignOut}
+              disabled={signingOut}
+              title="Sign out"
+              className="p-1.5 text-blue-300 hover:text-white hover:bg-blue-700 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
