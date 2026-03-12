@@ -166,11 +166,6 @@ const PRDetails = ({ pr }) => {
                     <p className="text-xs text-gray-500 mt-0.5">
                       {new Date(entry.date).toLocaleString()}
                     </p>
-                    {entry.notes && (
-                      <p className="text-xs text-gray-600 mt-2 italic bg-white p-2 rounded border-l-2 border-blue-300">
-                        "{entry.notes}"
-                      </p>
-                    )}
                   </div>
                 </div>
               ))}

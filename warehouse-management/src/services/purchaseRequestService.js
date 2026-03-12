@@ -11,18 +11,22 @@ const PurchaseRequestService = {
   // Create new Purchase Request
   async create(prData) {
     try {
-      const prNumber = this.generatePRNumber();
+      // Use user-supplied PR number if provided, otherwise auto-generate
+      const prNumber = prData.prNumber?.trim()
+        ? prData.prNumber.trim()
+        : this.generatePRNumber();
+
       const newPR = {
-        pr_number: prNumber,
-        department: prData.department,
-        supplier: prData.supplier || '',
-        companyName: prData.companyName || '',
-        contactPerson: prData.contactPerson || '',
-        terms: prData.terms || '',
-        requested_by: prData.requestedBy,
-        items: prData.items || [],
-        status: 'Submitted',
-        notes: prData.notes || '',
+        pr_number:      prNumber,
+        department:     prData.department,
+        requested_by:   prData.requestedBy,
+        supplier:       prData.supplier       || '',
+        company_name:   prData.companyName    || '',
+        contact_person: prData.contactPerson  || '',
+        terms:          prData.terms          || '',
+        items:          prData.items          || [],
+        status:         'Submitted',
+        notes:          prData.notes          || '',
         history: [
           {
             action: 'Created',

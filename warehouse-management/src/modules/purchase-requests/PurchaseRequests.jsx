@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Plus, Filter, Download, FileText, Eye, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import {
+  Plus, Filter, Download, FileText, Eye, Edit, Trash2,
+  ChevronLeft, ChevronRight, X, FileSpreadsheet, Search
+} from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
@@ -7,225 +10,458 @@ import PRForm from './PRForm';
 import PRDetails from './PRDetails';
 import PREditForm from './PREditForm';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
+
+// ─── Export helpers (CDN-loaded, no npm) ─────────────────────────────────────
+const loadScript = (src) =>
+  new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+
+const exportToExcel = async (rows) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const XLSX = window.XLSX;
+  const data = [
+    ['PR Number', 'Date', 'Department', 'Requested By', 'Supplier', 'Company', 'Contact Person', 'Terms', 'Items', 'Est. Total', 'Status'],
+    ...rows.map(pr => [
+      pr.pr_number || pr.prNumber || '',
+      pr.created_at ? new Date(pr.created_at).toLocaleDateString() : '',
+      pr.department || '',
+      pr.requested_by || pr.requestedBy || '',
+      pr.supplier || '',
+      pr.company_name || pr.companyName || '',
+      pr.contact_person || pr.contactPerson || '',
+      pr.terms || '',
+      (pr.items || []).length,
+      (pr.items || []).reduce((s, i) => s + (parseFloat(i.estimatedPrice) || 0) * (parseInt(i.quantity) || 1), 0),
+      pr.status || '',
+    ]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Purchase Requests');
+  XLSX.writeFile(wb, `PurchaseRequests_${new Date().toISOString().split('T')[0]}.xlsx`);
+};
+
+const exportToPDF = async (rows) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  doc.setFontSize(16);
+  doc.text('GOLI ICT — Purchase Requests', 14, 15);
+  doc.setFontSize(9);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
+
+  doc.autoTable({
+    startY: 27,
+    head: [['PR Number', 'Date', 'Department', 'Supplier', 'Company', 'Terms', 'Items', 'Status']],
+    body: rows.map(pr => [
+      pr.pr_number || pr.prNumber || '',
+      pr.created_at ? new Date(pr.created_at).toLocaleDateString() : '',
+      pr.department || '',
+      pr.supplier || '',
+      pr.company_name || pr.companyName || '',
+      pr.terms || '',
+      (pr.items || []).length,
+      pr.status || '',
+    ]),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [30, 58, 138] },
+    alternateRowStyles: { fillColor: [239, 246, 255] },
+  });
+
+  doc.save(`PurchaseRequests_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+const StatusBadge = ({ status }) => {
+  const map = {
+    Submitted:    'bg-blue-100 text-blue-800',
+    Approved:     'bg-green-100 text-green-800',
+    'For Canvass':'bg-yellow-100 text-yellow-800',
+    Cancelled:    'bg-red-100 text-red-800',
+    Completed:    'bg-purple-100 text-purple-800',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${map[status] || 'bg-gray-100 text-gray-600'}`}>
+      {status || 'Unknown'}
+    </span>
+  );
+};
+
+// ─── Filter Panel ─────────────────────────────────────────────────────────────
+const FilterPanel = ({ filters, onChange, onReset, departments }) => {
+  const statuses = ['Submitted', 'Approved', 'For Canvass', 'Cancelled', 'Completed'];
+  const inp = 'w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const lbl = 'block text-xs font-medium text-gray-500 mb-1';
+
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-700">Filters</p>
+        <button onClick={onReset} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+          <X size={11} /> Reset all
+        </button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div>
+          <label className={lbl}>PR Number</label>
+          <input type="text" value={filters.prNumber} onChange={e => onChange('prNumber', e.target.value)}
+            placeholder="Search PR#" className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>Department</label>
+          <select value={filters.department} onChange={e => onChange('department', e.target.value)} className={inp}>
+            <option value="">All</option>
+            {departments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Status</label>
+          <select value={filters.status} onChange={e => onChange('status', e.target.value)} className={inp}>
+            <option value="">All</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Supplier</label>
+          <input type="text" value={filters.supplier} onChange={e => onChange('supplier', e.target.value)}
+            placeholder="Search supplier" className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>Company</label>
+          <input type="text" value={filters.company} onChange={e => onChange('company', e.target.value)}
+            placeholder="Search company" className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>Contact Person</label>
+          <input type="text" value={filters.contactPerson} onChange={e => onChange('contactPerson', e.target.value)}
+            placeholder="Search contact" className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>Payment Terms</label>
+          <select value={filters.terms} onChange={e => onChange('terms', e.target.value)} className={inp}>
+            <option value="">All</option>
+            {['Cash on Delivery','Net 15','Net 30','Net 60','50% Down Payment','Full Payment in Advance'].map(t =>
+              <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Date From</label>
+          <input type="date" value={filters.dateFrom} onChange={e => onChange('dateFrom', e.target.value)} className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>Date To</label>
+          <input type="date" value={filters.dateTo} onChange={e => onChange('dateTo', e.target.value)} className={inp} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+const EMPTY_FILTERS = {
+  prNumber: '', department: '', status: '', supplier: '',
+  company: '', contactPerson: '', terms: '', dateFrom: '', dateTo: '',
+};
 
 const PurchaseRequests = () => {
   const { purchaseRequests, deletePR } = useWMS();
+  const { departments } = useSettings();
+  const prs = purchaseRequests ?? [];
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedPR, setSelectedPR] = useState(null);
+  const [isViewModalOpen,   setIsViewModalOpen]   = useState(false);
+  const [isEditModalOpen,   setIsEditModalOpen]   = useState(false);
+  const [selectedPR,        setSelectedPR]        = useState(null);
+  const [showFilters,       setShowFilters]       = useState(false);
+  const [filters,           setFilters]           = useState(EMPTY_FILTERS);
+  const [search,            setSearch]            = useState('');
+  const [page,              setPage]              = useState(1);
+  const [pageSize,          setPageSize]          = useState(10);
+  const [exporting,         setExporting]         = useState(false);
 
-  const handleView = (pr) => {
-    setSelectedPR(pr);
-    setIsViewModalOpen(true);
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(1);
   };
+  const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
 
-  const handleEdit = (pr) => {
-    setSelectedPR(pr);
-    setIsEditModalOpen(true);
-  };
+  // ── Filtering ──
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return prs.filter(pr => {
+      const date = pr.created_at ? new Date(pr.created_at) : null;
+      const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
 
+      return (
+        (!q || [pr.pr_number, pr.department, pr.supplier, pr.company_name, pr.contact_person, pr.requested_by]
+          .some(f => (f || '').toLowerCase().includes(q))) &&
+        (!filters.prNumber      || (pr.pr_number || '').toLowerCase().includes(filters.prNumber.toLowerCase())) &&
+        (!filters.department    || pr.department === filters.department) &&
+        (!filters.status        || pr.status === filters.status) &&
+        (!filters.supplier      || (pr.supplier || '').toLowerCase().includes(filters.supplier.toLowerCase())) &&
+        (!filters.company       || (pr.company_name || '').toLowerCase().includes(filters.company.toLowerCase())) &&
+        (!filters.contactPerson || (pr.contact_person || '').toLowerCase().includes(filters.contactPerson.toLowerCase())) &&
+        (!filters.terms         || pr.terms === filters.terms) &&
+        (!dateFrom || (date && date >= dateFrom)) &&
+        (!dateTo   || (date && date <= dateTo))
+      );
+    });
+  }, [prs, filters, search]);
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  // ── Pagination ──
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleView   = (pr) => { setSelectedPR(pr); setIsViewModalOpen(true); };
+  const handleEdit   = (pr) => { setSelectedPR(pr); setIsEditModalOpen(true); };
   const handleDelete = async (pr) => {
-    if (window.confirm(`Are you sure you want to delete PR ${pr.pr_number || pr.prNumber}?`)) {
-      const success = await deletePR(pr.id);
-      if (success) {
-        alert('Purchase Request deleted successfully');
-      } else {
-        alert('Failed to delete Purchase Request');
-      }
-    }
+    if (!window.confirm(`Delete PR ${pr.pr_number || pr.prNumber}?`)) return;
+    const ok = await deletePR(pr.id);
+    if (!ok) alert('Failed to delete Purchase Request');
   };
 
-  const handleSuccess = () => {
-    console.log('Operation completed successfully!');
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try { await exportToExcel(filtered); }
+    catch (e) { console.error(e); alert('Export failed'); }
+    finally { setExporting(false); }
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try { await exportToPDF(filtered); }
+    catch (e) { console.error(e); alert('Export failed'); }
+    finally { setExporting(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="primary" 
-            icon={Plus}
-            onClick={() => setIsCreateModalOpen(true)}
+    <div className="space-y-4">
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <Button variant="primary" icon={Plus} onClick={() => setIsCreateModalOpen(true)}>
+            New PR
+          </Button>
+
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
           >
-            New Purchase Request
-          </Button>
-          <Button variant="outline" icon={Filter}>
+            <Filter size={15} />
             Filter
-          </Button>
+            {activeFilterCount > 0 && (
+              <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Search bar */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Quick search…"
+              className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+            />
+          </div>
         </div>
-        <Button variant="outline" icon={Download}>
-          Export
-        </Button>
+
+        {/* Export buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting || filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            <FileSpreadsheet size={15} className="text-green-600" />
+            Excel
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting || filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            <Download size={15} className="text-red-600" />
+            PDF
+          </button>
+        </div>
       </div>
 
+      {/* Filter panel */}
+      {showFilters && (
+        <FilterPanel
+          filters={filters}
+          onChange={handleFilterChange}
+          onReset={resetFilters}
+          departments={departments}
+        />
+      )}
+
+      {/* Results summary */}
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <span>
+          Showing <strong>{paginated.length}</strong> of <strong>{filtered.length}</strong> purchase requests
+          {filtered.length !== prs.length && ` (filtered from ${prs.length})`}
+        </span>
+        <div className="flex items-center gap-2">
+          <span>Rows per page:</span>
+          <select
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+            className="border border-gray-300 rounded px-2 py-0.5 text-sm"
+          >
+            {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Table */}
       <Card padding="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PR Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Supplier
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact Person
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Terms
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantity
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                {['PR Number','Date','Department','Requested By','Supplier','Company','Contact','Terms','Items','Status','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {!purchaseRequests || purchaseRequests.length === 0 ? (
+              {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="px-6 py-12 text-center text-gray-400">
-                    <FileText size={48} className="mx-auto mb-3 opacity-50" />
-                    <p>No purchase requests found</p>
-                    <p className="text-sm mt-1">Click "New Purchase Request" to create one</p>
+                  <td colSpan="11" className="px-6 py-16 text-center text-gray-400">
+                    <FileText size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No purchase requests found</p>
+                    <p className="text-sm mt-1">
+                      {activeFilterCount > 0 || search
+                        ? 'Try adjusting your filters or search.'
+                        : 'Click "New PR" to create one.'}
+                    </p>
                   </td>
                 </tr>
-              ) : (
-                purchaseRequests.map((pr) => (
-                  <tr key={pr.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {pr.pr_number || pr.prNumber || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.date ? new Date(pr.date).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.department || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.supplier || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.company_name || pr.companyName || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.contact_person || pr.contactPerson || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.terms || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {pr.items ? pr.items.length : 0} item(s)
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${pr.status === 'Submitted' ? 'bg-blue-100 text-blue-800' : ''}
-                        ${pr.status === 'Approved' ? 'bg-green-100 text-green-800' : ''}
-                        ${pr.status === 'For Canvass' ? 'bg-yellow-100 text-yellow-800' : ''}
-                        ${pr.status === 'Cancelled' ? 'bg-red-100 text-red-800' : ''}
-                      `}>
-                        {pr.status || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => handleView(pr)}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="View"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleEdit(pr)}
-                          className="text-gray-600 hover:text-gray-900 p-1"
-                          title="Edit"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(pr)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ) : paginated.map(pr => (
+                <tr key={pr.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
+                    {pr.pr_number || pr.prNumber || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                    {pr.created_at ? new Date(pr.created_at).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{pr.department || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{pr.requested_by || pr.requestedBy || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{pr.supplier || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{pr.company_name || pr.companyName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{pr.contact_person || pr.contactPerson || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{pr.terms || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap text-center">{(pr.items || []).length}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={pr.status} /></td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleView(pr)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View">
+                        <Eye size={15} />
+                      </button>
+                      <button onClick={() => handleEdit(pr)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                        <Edit size={15} />
+                      </button>
+                      <button onClick={() => handleDelete(pr)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+            <span className="text-sm text-gray-500">
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+                className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              >«</button>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              ><ChevronLeft size={14} /></button>
+
+              {/* Page number buttons */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                const p = start + i;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded text-sm border transition-colors ${
+                      p === page
+                        ? 'bg-blue-900 text-white border-blue-900'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >{p}</button>
+                );
+              })}
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              ><ChevronRight size={14} /></button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+                className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              >»</button>
+            </div>
+          </div>
+        )}
       </Card>
 
-      {/* Create Modal */}
-      <Modal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        title="New Purchase Request"
-        size="lg"
-      >
-        <PRForm
-          onClose={() => setIsCreateModalOpen(false)}
-          onSuccess={handleSuccess}
-        />
+      {/* Modals */}
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="New Purchase Request" size="lg">
+        <PRForm onClose={() => setIsCreateModalOpen(false)} onSuccess={() => {}} />
       </Modal>
 
-      {/* View Modal */}
-      <Modal
-        isOpen={isViewModalOpen}
-        onClose={() => setIsViewModalOpen(false)}
-        title="Purchase Request Details"
-        size="lg"
-      >
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Purchase Request Details" size="lg">
         <PRDetails pr={selectedPR} />
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-          <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
-            Close
-          </Button>
-          <Button 
-            variant="primary" 
-            onClick={() => {
-              setIsViewModalOpen(false);
-              handleEdit(selectedPR);
-            }}
-          >
-            Edit
-          </Button>
+          <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>Close</Button>
+          <Button variant="primary" onClick={() => { setIsViewModalOpen(false); handleEdit(selectedPR); }}>Edit</Button>
         </div>
       </Modal>
 
-      {/* Edit Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Purchase Request"
-        size="lg"
-      >
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Purchase Request" size="lg">
         {selectedPR && (
-          <PREditForm
-            pr={selectedPR}
-            onClose={() => setIsEditModalOpen(false)}
-            onSuccess={handleSuccess}
-          />
+          <PREditForm pr={selectedPR} onClose={() => setIsEditModalOpen(false)} onSuccess={() => {}} />
         )}
       </Modal>
     </div>
