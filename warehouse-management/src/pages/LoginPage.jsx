@@ -46,7 +46,7 @@ const LoginPage = () => {
                 <Package size={24} className="text-white" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wide">ASSET – WMS</h1>
+            <h1 className="text-2xl font-bold text-white tracking-wide">ICT ASSET – WMS</h1>
             <p className="text-blue-200 text-sm mt-1">Warehouse Management System</p>
           </div>
 
