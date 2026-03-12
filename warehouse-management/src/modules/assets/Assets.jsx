@@ -5,7 +5,6 @@ import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
 import AssetForm from './AssetForm';
 import AssetEditForm from './AssetEditForm';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 import QRScanner from '../../components/common/QRScanner';
 import { useWMS } from '../../context/WMSContext';
@@ -50,9 +49,6 @@ const Assets = () => {
           <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>
             Add Asset
           </Button>
-          <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>
-            Scan QR Code
-          </Button>
           <Button variant="outline" icon={Filter}>Filter</Button>
         </div>
         <Button variant="outline" icon={Download}>Export</Button>
@@ -90,7 +86,6 @@ const Assets = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">QR Code</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -120,19 +115,7 @@ const Assets = () => {
                           {asset.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {(asset.is_tagged || asset.isTagged) ? (
-                          <button
-                            onClick={() => setSelectedQRAsset(asset)}
-                            title="Click to view / print QR"
-                            className="hover:opacity-75 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
-                          >
-                            <QRCodeDisplay asset={asset} size={52} />
-                          </button>
-                        ) : (
-                          <span className="text-gray-400 text-xs">No QR</span>
-                        )}
-                      </td>
+                      
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1">
                           <button
