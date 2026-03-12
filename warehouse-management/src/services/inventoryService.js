@@ -11,7 +11,9 @@ const InventoryService = {
   // Create new Inventory Item
   async create(itemData) {
     try {
-      const itemCode = this.generateItemCode(itemData.category);
+      const itemCode = itemData.itemCode?.trim()
+        ? itemData.itemCode.trim()
+        : this.generateItemCode(itemData.category);
       const quantity = itemData.quantity || 0;
       
       const newItem = {
