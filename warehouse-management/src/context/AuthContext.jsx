@@ -10,23 +10,19 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [session, setSession]   = useState(null);
-  const [user, setUser]         = useState(null);
-  const [loading, setLoading]   = useState(true); // true until first session check resolves
+  const [session, setSession] = useState(null);
+  const [user, setUser]       = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Get current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // onAuthStateChange fires immediately on mount with the current session
+    // (INITIAL_SESSION event) — this is the correct moment because Supabase
+    // has already injected the token into the client before calling this callback.
+    // Using getSession() separately causes a race where the token isn't ready yet.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // 2. Subscribe to future auth state changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      setLoading(false); // only set false AFTER token is confirmed ready
     });
 
     return () => subscription.unsubscribe();

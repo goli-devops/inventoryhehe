@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import supabase from '../config/supabase';
 import PurchaseRequestService from '../services/purchaseRequestService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
@@ -19,7 +20,7 @@ export const WMSProvider = ({ children }) => {
   const [inventory, setInventory] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const { user: authUser } = useAuth();
+  const { user: authUser, session } = useAuth();
 
   // Derive a display name from the auth user's metadata or email
   const currentUser = {
@@ -31,29 +32,72 @@ export const WMSProvider = ({ children }) => {
     role:  authUser?.user_metadata?.role || 'Staff',
   };
 
-  // Load all data on mount
-  useEffect(() => {
-    loadAllData();
-  }, []);
-
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prs, pos, inv, ast] = await Promise.all([
+      const [prs, inv, ast] = await Promise.all([
         PurchaseRequestService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
       ]);
-      
-      setPurchaseRequests(prs);
-      setInventory(inv);
-      setAssets(ast);
+
+      if (import.meta.env.DEV) {
+        console.log('[WMS] Loaded:', { prs: prs?.length, inv: inv?.length, ast: ast?.length });
+      }
+
+      setPurchaseRequests(Array.isArray(prs) ? prs : []);
+      setInventory(Array.isArray(inv) ? inv : []);
+      setAssets(Array.isArray(ast) ? ast : []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('[WMS] loadAllData failed:', error);
+      setPurchaseRequests(p => Array.isArray(p) ? p : []);
+      setInventory(p => Array.isArray(p) ? p : []);
+      setAssets(p => Array.isArray(p) ? p : []);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // When session is available, explicitly set it on the supabase client
+  // then load data — this guarantees the auth token is attached before any query
+  useEffect(() => {
+    if (!session?.access_token) return;
+
+    supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    }).then(() => {
+      loadAllData();
+    });
+  }, [session?.access_token, loadAllData]);
+
+  // Supabase Realtime — keep all tables in sync automatically
+  useEffect(() => {
+    if (!authUser) return;
+
+    const channel = supabase
+      .channel('wms-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        InventoryService.getAll().then(inv => {
+          if (Array.isArray(inv)) setInventory(inv);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => {
+        AssetService.getAll().then(ast => {
+          if (Array.isArray(ast)) setAssets(ast);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, () => {
+        PurchaseRequestService.getAll().then(prs => {
+          if (Array.isArray(prs)) setPurchaseRequests(prs);
+        });
+      })
+      .subscribe((status) => {
+        if (import.meta.env.DEV) console.log('[WMS] Realtime status:', status);
+      });
+
+    return () => supabase.removeChannel(channel);
+  }, [authUser]);
 
   // Purchase Request Functions
   const createPR = async (prData) => {
