@@ -107,7 +107,6 @@ const PRForm = ({ onClose, onSuccess }) => {
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., ABC Trading Co."
           />
         </div>
       </div>
@@ -144,12 +143,11 @@ const PRForm = ({ onClose, onSuccess }) => {
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., ABC Trading Corporation"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Contact Person <span className="text-red-500">*</span>
+            Requester/Contact Person <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -158,7 +156,7 @@ const PRForm = ({ onClose, onSuccess }) => {
             onChange={handleInputChange}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., Juan dela Cruz"
+            placeholder="Full Name"
           />
         </div>
       </div>
@@ -241,14 +239,13 @@ const PRForm = ({ onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Specifications/Notes</label>
         <textarea
           name="notes"
           value={formData.notes}
           onChange={handleInputChange}
           rows="3"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Additional notes or requirements..."
         />
       </div>
 
