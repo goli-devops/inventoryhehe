@@ -18,11 +18,13 @@ const PurchaseRequestService = {
 
       const newPR = {
         pr_number:      prNumber,
+        jor_number:     prData.jorNumber?.trim() || '',
         department:     prData.department,
         requested_by:   prData.requestedBy,
         supplier:       prData.supplier       || '',
         company_name:   prData.companyName    || '',
         contact_person: prData.contactPerson  || '',
+        contact_number: prData.contactNumber  || '',
         terms:          prData.terms          || '',
         items:          prData.items          || [],
         status:         'Submitted',

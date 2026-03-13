@@ -19,11 +19,13 @@ const PRForm = ({ onClose, onSuccess }) => {
 
   const [formData, setFormData] = useState({
     prNumber: '',
+    jorNumber: '',
     department: '',
     requestedBy: '',
     supplier: '',
     companyName: '',
     contactPerson: '',
+    contactNumber: '',
     terms: '',
     notes: '',
     items: [{ description: '', quantity: 1, unit: '', estimatedPrice: '' }],
@@ -51,6 +53,11 @@ const PRForm = ({ onClose, onSuccess }) => {
       setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
   };
 
+  // Prevent Enter from submitting / adding items — only the Add Item button should do that
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  };
+
   const totalEstimated = formData.items.reduce((sum, i) =>
     sum + (parseFloat(i.estimatedPrice) || 0) * (parseInt(i.quantity) || 1), 0);
 
@@ -72,10 +79,31 @@ const PRForm = ({ onClose, onSuccess }) => {
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
   const labelCls = 'block text-sm font-medium text-gray-700 mb-1.5';
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+  // Floating label select — shows placeholder text above when a value is selected
+  const FloatingSelect = ({ name, value, onChange, options, placeholder, required }) => (
+    <div className="relative">
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        className={`${inputCls} ${!value ? 'text-gray-400' : 'text-gray-800'}`}
+      >
+        <option value="" disabled hidden>{placeholder}</option>
+        {options.map(o => <option key={o} value={o} className="text-gray-800">{o}</option>)}
+      </select>
+      {value && (
+        <span className="absolute -top-2 left-2.5 bg-white px-1 text-xs text-blue-600 font-medium pointer-events-none">
+          {placeholder}
+        </span>
+      )}
+    </div>
+  );
 
-      {/* Row 1: PR Number + Department */}
+  return (
+    <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-6">
+
+      {/* Row 1: PR Number + JOR Number */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>
@@ -84,7 +112,7 @@ const PRForm = ({ onClose, onSuccess }) => {
           <div className="relative">
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="text"
+              type="number"
               name="prNumber"
               value={formData.prNumber}
               onChange={handleInputChange}
@@ -95,12 +123,31 @@ const PRForm = ({ onClose, onSuccess }) => {
           </div>
         </div>
         <div>
-          <label className={labelCls}>Department <span className="text-red-500">*</span></label>
-          <select name="department" value={formData.department} onChange={handleInputChange} required className={inputCls}>
-            <option value="">Select Department</option>
-            {departments.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+          <label className={labelCls}>JOR Number <span className="text-red-500">*</span></label>
+          <div className="relative">
+            <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="number"
+              name="jorNumber"
+              value={formData.jorNumber}
+              onChange={handleInputChange}
+              placeholder="e.g. JOR-2025-001"
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
         </div>
+      </div>
+
+      {/* Row 2: Department */}
+      <div>
+        <label className={labelCls}>Department</label>
+        <FloatingSelect
+          name="department"
+          value={formData.department}
+          onChange={handleInputChange}
+          options={departments}
+        />
       </div>
 
       {/* Row 2: Requested By */}
@@ -130,11 +177,19 @@ const PRForm = ({ onClose, onSuccess }) => {
               placeholder="Contact person" className={inputCls} />
           </div>
           <div>
+            <label className={labelCls}>Contact Number</label>
+            <input type="number" name="contactNumber" value={formData.contactNumber} onChange={handleInputChange}
+              placeholder="" className={inputCls} />
+          </div>
+          <div className="col-span-2">
             <label className={labelCls}>Payment Terms</label>
-            <select name="terms" value={formData.terms} onChange={handleInputChange} className={inputCls}>
-              <option value="">Select Terms</option>
-              {TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <FloatingSelect
+              name="terms"
+              value={formData.terms}
+              onChange={handleInputChange}
+              options={TERMS_OPTIONS}
+              placeholder="Select Terms"
+            />
           </div>
         </div>
       </div>
@@ -170,11 +225,12 @@ const PRForm = ({ onClose, onSuccess }) => {
                 <select value={item.unit}
                   onChange={e => handleItemChange(index, 'unit', e.target.value)}
                   required className={inputCls}>
+                  <option value="" disabled hidden>Select Unit</option>
                   {units.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="0.01"
+                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="1"
                   onChange={e => handleItemChange(index, 'estimatedPrice', e.target.value)}
                   className={inputCls} />
               </div>
@@ -199,7 +255,7 @@ const PRForm = ({ onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className={labelCls}>Specifications/Notes</label>
+        <label className={labelCls}>Notes</label>
         <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
           placeholder="Additional notes or requirements..." className={inputCls} />
       </div>
