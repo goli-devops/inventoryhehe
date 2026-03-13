@@ -22,6 +22,10 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
     || user?.email?.split('@')[0]
     || 'System';
 
+  // Deep-clone the original PR data on mount — used as the diff baseline.
+  // We can't use `pr` directly because React may mutate the reference.
+  const originalPR = React.useRef(JSON.parse(JSON.stringify(pr)));
+
   const [formData, setFormData] = useState({
     prNumber:      pr.pr_number      || pr.prNumber      || '',
     jorNumber:     pr.jor_number     || pr.jorNumber     || '',
@@ -68,7 +72,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await updatePR(pr.id, formData, pr, displayName);
+      const result = await updatePR(pr.id, formData, originalPR.current, displayName);
       if (result) { onSuccess?.(result); onClose(); }
       else alert('Failed to update Purchase Request');
     } catch (err) {

@@ -41,6 +41,8 @@ const entryMeta = (entry) => {
 
 const PRDetails = ({ pr }) => {
   const [tab, setTab] = useState('details');
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 5;
   if (!pr) return null;
 
   const totalEstimated = (pr.items || []).reduce(
@@ -170,67 +172,93 @@ const PRDetails = ({ pr }) => {
               <Clock size={32} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm">No history yet</p>
             </div>
-          ) : (
-            <div className="relative">
-              {/* vertical line */}
-              <div className="absolute left-[18px] top-0 bottom-0 w-px bg-gray-200" />
-
-              <div className="space-y-3">
-                {history.map((entry, i) => {
-                  const { icon: Icon, color, bg } = entryMeta(entry);
-                  return (
-                    <div key={i} className="flex gap-3 relative">
-                      {/* dot */}
-                      <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center flex-shrink-0 bg-white z-10 ${bg}`}>
-                        <Icon size={15} className={color} />
-                      </div>
-
-                      <div className={`flex-1 rounded-xl border p-3 text-sm ${bg}`}>
-                        <div className="flex items-start justify-between gap-2 flex-wrap">
-                          <div>
-                            {/* Main message */}
-                            {entry.action === 'Created' ? (
-                              <p className="font-semibold text-gray-800">{entry.details || 'Purchase Request created'}</p>
-                            ) : entry.from !== undefined && entry.to !== undefined ? (
+          ) : (() => {
+            const totalPages = Math.ceil(history.length / HISTORY_PAGE_SIZE);
+            const paged = history.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
+            return (
+              <>
+                <div className="relative">
+                  <div className="absolute left-[18px] top-0 bottom-0 w-px bg-gray-200" />
+                  <div className="space-y-3">
+                    {paged.map((entry, i) => {
+                      const { icon: Icon, color, bg } = entryMeta(entry);
+                      return (
+                        <div key={i} className="flex gap-3 relative">
+                          <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center flex-shrink-0 bg-white z-10 ${bg}`}>
+                            <Icon size={15} className={color} />
+                          </div>
+                          <div className={`flex-1 rounded-xl border p-3 text-sm ${bg}`}>
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
                               <div>
-                                <p className="font-semibold text-gray-800 mb-1">
-                                  {entry.itemLabel || entry.field} updated
-                                </p>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs text-gray-600 font-mono">
-                                    {entry.from || '(empty)'}
-                                  </span>
-                                  <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
-                                  <span className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
-                                    entry.field === 'Status'
-                                      ? STATUS_STYLES[entry.to] || 'bg-gray-100 text-gray-700'
-                                      : 'bg-white border border-blue-300 text-blue-700'
-                                  }`}>
-                                    {entry.to || '(empty)'}
-                                  </span>
-                                </div>
+                                {entry.action === 'Created' ? (
+                                  <p className="font-semibold text-gray-800">{entry.details || 'Purchase Request created'}</p>
+                                ) : entry.from !== undefined && entry.to !== undefined ? (
+                                  <div>
+                                    <p className="font-semibold text-gray-800 mb-1">
+                                      {entry.itemLabel || entry.field} updated
+                                    </p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs text-gray-600 font-mono">
+                                        {entry.from || '(empty)'}
+                                      </span>
+                                      <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
+                                      <span className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+                                        entry.field === 'Status'
+                                          ? STATUS_STYLES[entry.to] || 'bg-gray-100 text-gray-700'
+                                          : 'bg-white border border-blue-300 text-blue-700'
+                                      }`}>
+                                        {entry.to || '(empty)'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="font-medium text-gray-700">{entry.details || entry.action}</p>
+                                )}
                               </div>
-                            ) : (
-                              <p className="font-medium text-gray-700">{entry.details || entry.action}</p>
-                            )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                              <User size={11} />
+                              <span className="font-medium text-gray-600">{entry.user || 'System'}</span>
+                              <span>·</span>
+                              <Clock size={11} />
+                              <span>{new Date(entry.date).toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                        {/* Footer: user + time */}
-                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                          <User size={11} />
-                          <span className="font-medium text-gray-600">{entry.user || 'System'}</span>
-                          <span>·</span>
-                          <Clock size={11} />
-                          <span>{new Date(entry.date).toLocaleString()}</span>
-                        </div>
-                      </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
+                    <span className="text-xs text-gray-500">
+                      {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length} entries
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+                        className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">
+                        ← Prev
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                        <button key={p} onClick={() => setHistoryPage(p)}
+                          className={`w-7 h-7 text-xs rounded border transition-colors ${
+                            p === historyPage ? 'bg-blue-900 text-white border-blue-900' : 'border-gray-300 hover:bg-gray-50'
+                          }`}>
+                          {p}
+                        </button>
+                      ))}
+                      <button onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))} disabled={historyPage === totalPages}
+                        className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">
+                        Next →
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

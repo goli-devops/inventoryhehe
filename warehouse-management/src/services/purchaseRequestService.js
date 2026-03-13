@@ -154,15 +154,11 @@ const PurchaseRequestService = {
         { key: 'estimatedPrice', label: 'Est. Price',  normalize: v => Number(v) || 0 },
       ];
 
-      console.log(`[History diff] Item ${i + 1} old:`, JSON.stringify(oldItem));
-      console.log(`[History diff] Item ${i + 1} new:`, JSON.stringify(newItem));
-
       itemFields.forEach(({ key, label: fieldLabel, normalize }) => {
         const rawOld = oldItem[key];
         const rawNew = newItem[key];
         const oldVal = normalize ? normalize(rawOld) : (rawOld ?? '').toString().trim();
         const newVal = normalize ? normalize(rawNew) : (rawNew ?? '').toString().trim();
-        console.log(`[History diff]   ${key}: "${rawOld}"(${typeof rawOld}) → "${rawNew}"(${typeof rawNew}) | normalized: ${oldVal} → ${newVal} | changed: ${oldVal !== newVal}`);
         if (oldVal !== newVal) {
           const display = v => normalize === (itemFields.find(f => f.key === 'estimatedPrice')?.normalize)
             && key === 'estimatedPrice'
