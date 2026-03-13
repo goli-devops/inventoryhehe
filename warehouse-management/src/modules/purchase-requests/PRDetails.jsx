@@ -191,14 +191,14 @@ const PRDetails = ({ pr }) => {
                             {/* Main message */}
                             {entry.action === 'Created' ? (
                               <p className="font-semibold text-gray-800">{entry.details || 'Purchase Request created'}</p>
-                            ) : entry.from && entry.to ? (
+                            ) : entry.from !== undefined && entry.to !== undefined ? (
                               <div>
                                 <p className="font-semibold text-gray-800 mb-1">
-                                  {entry.field} updated
+                                  {entry.itemLabel || entry.field} updated
                                 </p>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs text-gray-600 font-mono">
-                                    {entry.from}
+                                    {entry.from || '(empty)'}
                                   </span>
                                   <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
                                   <span className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
@@ -206,7 +206,7 @@ const PRDetails = ({ pr }) => {
                                       ? STATUS_STYLES[entry.to] || 'bg-gray-100 text-gray-700'
                                       : 'bg-white border border-blue-300 text-blue-700'
                                   }`}>
-                                    {entry.to}
+                                    {entry.to || '(empty)'}
                                   </span>
                                 </div>
                               </div>

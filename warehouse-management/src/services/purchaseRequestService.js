@@ -119,16 +119,64 @@ const PurchaseRequestService = {
       }
     });
 
-    // Items change — just record that items were updated (not a line-by-line diff)
-    const oldItems = JSON.stringify(oldPR.items || []);
-    const newItems = JSON.stringify(newData.items || []);
-    if (oldItems !== newItems) {
-      entries.push({
-        action: 'Updated',
-        date: now,
-        user: updatedBy,
-        field: 'Items',
-        details: 'Items list was modified',
+    // ── Items diff: compare each item field individually ──
+    const oldItems = oldPR.items || [];
+    const newItems = newData.items || [];
+    const maxLen = Math.max(oldItems.length, newItems.length);
+
+    for (let i = 0; i < maxLen; i++) {
+      const oldItem = oldItems[i];
+      const newItem = newItems[i];
+      const label = `Item ${i + 1}`;
+
+      if (!oldItem && newItem) {
+        entries.push({
+          action: 'Updated', date: now, user: updatedBy,
+          field: 'Items',
+          details: `${label} added: "${newItem.description || '(no description)'}"`,
+        });
+        continue;
+      }
+      if (oldItem && !newItem) {
+        entries.push({
+          action: 'Updated', date: now, user: updatedBy,
+          field: 'Items',
+          details: `${label} removed: "${oldItem.description || '(no description)'}"`,
+        });
+        continue;
+      }
+
+      // Compare each item field
+      const itemFields = [
+        { key: 'description',    label: 'Description' },
+        { key: 'quantity',       label: 'Qty',         normalize: v => Number(v) || 0 },
+        { key: 'unit',           label: 'Unit' },
+        { key: 'estimatedPrice', label: 'Est. Price',  normalize: v => Number(v) || 0 },
+      ];
+
+      console.log(`[History diff] Item ${i + 1} old:`, JSON.stringify(oldItem));
+      console.log(`[History diff] Item ${i + 1} new:`, JSON.stringify(newItem));
+
+      itemFields.forEach(({ key, label: fieldLabel, normalize }) => {
+        const rawOld = oldItem[key];
+        const rawNew = newItem[key];
+        const oldVal = normalize ? normalize(rawOld) : (rawOld ?? '').toString().trim();
+        const newVal = normalize ? normalize(rawNew) : (rawNew ?? '').toString().trim();
+        console.log(`[History diff]   ${key}: "${rawOld}"(${typeof rawOld}) → "${rawNew}"(${typeof rawNew}) | normalized: ${oldVal} → ${newVal} | changed: ${oldVal !== newVal}`);
+        if (oldVal !== newVal) {
+          const display = v => normalize === (itemFields.find(f => f.key === 'estimatedPrice')?.normalize)
+            && key === 'estimatedPrice'
+            ? `₱${parseFloat(v || 0).toFixed(2)}`
+            : String(v);
+          entries.push({
+            action: 'Updated', date: now, user: updatedBy,
+            field: 'Items',
+            from: String(normalize ? normalize(oldItem[key]) : (oldItem[key] ?? '')),
+            to:   String(normalize ? normalize(newItem[key]) : (newItem[key] ?? '')),
+            details: `${label} — ${fieldLabel} changed`,
+            itemLabel: `${label}: ${fieldLabel}`,
+          });
+        }
       });
     }
 
