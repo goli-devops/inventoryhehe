@@ -112,28 +112,29 @@ const PRForm = ({ onClose, onSuccess }) => {
           <div className="relative">
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               name="prNumber"
               value={formData.prNumber}
-              onChange={handleInputChange}
+              onChange={e => setFormData(prev => ({ ...prev, prNumber: e.target.value.replace(/\D/g, '') }))}
               required
-              placeholder="e.g. PR-2025-001"
+              placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
         <div>
-          <label className={labelCls}>JOR Number <span className="text-red-500">*</span></label>
+          <label className={labelCls}>JOR Number</label>
           <div className="relative">
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               name="jorNumber"
               value={formData.jorNumber}
-              onChange={handleInputChange}
-              placeholder="e.g. JOR-2025-001"
+              onChange={e => setFormData(prev => ({ ...prev, jorNumber: e.target.value.replace(/\D/g, '') }))}
+              placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
             />
           </div>
         </div>
@@ -147,14 +148,15 @@ const PRForm = ({ onClose, onSuccess }) => {
           value={formData.department}
           onChange={handleInputChange}
           options={departments}
+          placeholder="Select Department"
         />
       </div>
 
-      {/* Row 2: Requested By */}
+      {/* Row 3: Requester's Name */}
       <div>
-        <label className={labelCls}>Requested By <span className="text-red-500">*</span></label>
+        <label className={labelCls}>Requester's Name <span className="text-red-500">*</span></label>
         <input type="text" name="requestedBy" value={formData.requestedBy} onChange={handleInputChange}
-          required placeholder="Full name" className={inputCls} />
+          required placeholder="Full name of the requester" className={inputCls} />
       </div>
 
       {/* Supplier section */}
@@ -178,8 +180,9 @@ const PRForm = ({ onClose, onSuccess }) => {
           </div>
           <div>
             <label className={labelCls}>Contact Number</label>
-            <input type="number" name="contactNumber" value={formData.contactNumber} onChange={handleInputChange}
-              placeholder="" className={inputCls} />
+            <input type="text" inputMode="numeric" name="contactNumber" value={formData.contactNumber}
+              onChange={e => setFormData(prev => ({ ...prev, contactNumber: e.target.value.replace(/\D/g, '') }))}
+              placeholder="e.g. 09123456789" className={inputCls} />
           </div>
           <div className="col-span-2">
             <label className={labelCls}>Payment Terms</label>
@@ -219,18 +222,18 @@ const PRForm = ({ onClose, onSuccess }) => {
               <div className="col-span-2">
                 <input type="number" placeholder="Qty" value={item.quantity} min="1"
                   onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                  required className={inputCls} />
+                  className={inputCls} />
               </div>
               <div className="col-span-2">
                 <select value={item.unit}
                   onChange={e => handleItemChange(index, 'unit', e.target.value)}
-                  required className={inputCls}>
-                  <option value="" disabled hidden>Select Unit</option>
+                  className={inputCls}>
+                  <option value="" disabled hidden>Unit</option>
                   {units.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="1"
+                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="0.01"
                   onChange={e => handleItemChange(index, 'estimatedPrice', e.target.value)}
                   className={inputCls} />
               </div>

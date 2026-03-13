@@ -35,7 +35,7 @@ export const WMSProvider = ({ children }) => {
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prs, inv, ast] = await Promise.all([
+      const [prs, pos, inv, ast] = await Promise.all([
         PurchaseRequestService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
@@ -103,23 +103,26 @@ export const WMSProvider = ({ children }) => {
   const createPR = async (prData) => {
     const newPR = await PurchaseRequestService.create({
       ...prData,
-      requestedBy: currentUser.name
+      // requestedBy comes from the form (Requester's Name field)
+      // createdBy is the logged-in system user
+      createdBy: currentUser.name,
     });
     if (newPR) {
-      // Refresh all PRs to ensure sync
       const allPRs = await PurchaseRequestService.getAll();
       setPurchaseRequests(allPRs);
     }
     return newPR;
   };
 
-  const updatePR = async (id, updates) => {
-    const updatedPR = await PurchaseRequestService.update(id, {
-      ...updates,
-      updatedBy: currentUser.name
-    });
+  const updatePR = async (id, updates, oldPR, updatedBy) => {
+    const updatedPR = await PurchaseRequestService.update(
+      id,
+      updates,
+      oldPR || null,
+      updatedBy || currentUser.name
+    );
     if (updatedPR) {
-      setPurchaseRequests(prev => 
+      setPurchaseRequests(prev =>
         prev.map(pr => pr.id === id ? updatedPR : pr)
       );
     }
