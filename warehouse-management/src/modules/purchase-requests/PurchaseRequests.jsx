@@ -115,6 +115,11 @@ const FilterPanel = ({ filters, onChange, onReset, departments }) => {
             placeholder="Search PR#" className={inp} />
         </div>
         <div>
+          <label className={lbl}>JOR Number</label>
+          <input type="text" value={filters.jorNumber} onChange={e => onChange('jorNumber', e.target.value)}
+            placeholder="Search JOR#" className={inp} />
+        </div>
+        <div>
           <label className={lbl}>Department</label>
           <select value={filters.department} onChange={e => onChange('department', e.target.value)} className={inp}>
             <option value="">All</option>
@@ -168,7 +173,7 @@ const FilterPanel = ({ filters, onChange, onReset, departments }) => {
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const EMPTY_FILTERS = {
-  prNumber: '', department: '', status: '', supplier: '',
+  prNumber: '', jorNumber: '', department: '', status: '', supplier: '',
   company: '', contactPerson: '', terms: '', dateFrom: '', dateTo: '',
 };
 
@@ -203,14 +208,15 @@ const PurchaseRequests = () => {
       const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
 
       return (
-        (!q || [pr.pr_number, pr.department, pr.supplier, pr.company_name, pr.contact_person, pr.requested_by]
-          .some(f => (f || '').toLowerCase().includes(q))) &&
-        (!filters.prNumber      || (pr.pr_number || '').toLowerCase().includes(filters.prNumber.toLowerCase())) &&
+        (!q || [pr.pr_number, pr.jor_number, pr.department, pr.supplier, pr.company_name, pr.contact_person, pr.requested_by]
+          .some(f => String(f || '').toLowerCase().includes(q))) &&
+        (!filters.prNumber      || String(pr.pr_number  || '').toLowerCase().includes(filters.prNumber.toLowerCase())) &&
+        (!filters.jorNumber     || String(pr.jor_number || '').toLowerCase().includes(filters.jorNumber.toLowerCase())) &&
         (!filters.department    || pr.department === filters.department) &&
         (!filters.status        || pr.status === filters.status) &&
-        (!filters.supplier      || (pr.supplier || '').toLowerCase().includes(filters.supplier.toLowerCase())) &&
-        (!filters.company       || (pr.company_name || '').toLowerCase().includes(filters.company.toLowerCase())) &&
-        (!filters.contactPerson || (pr.contact_person || '').toLowerCase().includes(filters.contactPerson.toLowerCase())) &&
+        (!filters.supplier      || String(pr.supplier      || '').toLowerCase().includes(filters.supplier.toLowerCase())) &&
+        (!filters.company       || String(pr.company_name  || '').toLowerCase().includes(filters.company.toLowerCase())) &&
+        (!filters.contactPerson || String(pr.contact_person|| '').toLowerCase().includes(filters.contactPerson.toLowerCase())) &&
         (!filters.terms         || pr.terms === filters.terms) &&
         (!dateFrom || (date && date >= dateFrom)) &&
         (!dateTo   || (date && date <= dateTo))
@@ -341,7 +347,7 @@ const PurchaseRequests = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['PR Number','Date','Department','Requested By','Supplier','Company','Contact','Terms','Items','Status','Actions'].map(h => (
+                {['PR Number','JOR Number','Date','Department','Requested By','Supplier','Company','Contact','Terms','Items','Status','Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -351,7 +357,7 @@ const PurchaseRequests = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan="11" className="px-6 py-16 text-center text-gray-400">
+                  <td colSpan="12" className="px-6 py-16 text-center text-gray-400">
                     <FileText size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No purchase requests found</p>
                     <p className="text-sm mt-1">
@@ -365,6 +371,9 @@ const PurchaseRequests = () => {
                 <tr key={pr.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
                     {pr.pr_number || pr.prNumber || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium text-indigo-600 whitespace-nowrap">
+                    {pr.jor_number || pr.jorNumber || '—'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                     {pr.created_at ? new Date(pr.created_at).toLocaleDateString() : '—'}
