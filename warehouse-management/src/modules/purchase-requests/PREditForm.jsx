@@ -38,7 +38,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
     terms:         pr.terms          || '',
     status:        pr.status         || 'Submitted',
     notes:         pr.notes          || '',
-    items:         pr.items          || [{ description: '', quantity: 1, unit: '', estimatedPrice: 0 }],
+    items:         pr.items          || [{ description: '', quantity: '', unit: '', estimatedPrice: 0 }],
   });
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +55,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
   const addItem = () => setFormData(prev => ({
     ...prev,
-    items: [...prev.items, { description: '', quantity: 1, unit: '', estimatedPrice: 0 }],
+    items: [...prev.items, { description: '', quantity: '', unit: '', estimatedPrice: 0 }],
   }));
 
   const removeItem = (index) => {
@@ -138,7 +138,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
             options={STATUSES} placeholder="Select Status" required />
         </div>
         <div>
-          <label className={labelCls}>Department</label>
+          <label className={labelCls}>Branch/Department</label>
           <FloatingSelect name="department" value={formData.department} onChange={handleInputChange}
             options={departments} placeholder="Select Department" />
         </div>
@@ -195,7 +195,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
             <div className="col-span-5">Description</div>
             <div className="col-span-2">Qty</div>
             <div className="col-span-2">Unit</div>
-            <div className="col-span-2">Est. Price</div>
+            <div className="col-span-2">Est. Price/unit</div>
             <div className="col-span-1"></div>
           </div>
           {formData.items.map((item, index) => (
@@ -207,7 +207,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
               </div>
               <div className="col-span-2">
                 <input type="number" placeholder="Qty" value={item.quantity} min="1"
-                  onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                  onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || '')}
                   className={inputCls} />
               </div>
               <div className="col-span-2">
@@ -242,9 +242,9 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className={labelCls}>Notes</label>
+        <label className={labelCls}>Specifications/Notes</label>
         <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
-          placeholder="Additional notes or requirements..." className={inputCls} />
+          placeholder="Additional notes or specifications..." className={inputCls} />
       </div>
 
       {/* Actions */}
