@@ -98,7 +98,7 @@ const DeleteConfirmModal = ({ pr, onConfirm, onCancel }) => {
         <div>
           <p className="text-sm font-semibold text-red-700">You are about to delete a Purchase Request</p>
           <p className="text-sm text-red-600 mt-0.5">
-            This action cannot be undone. The record will be permanently removed but logged in the Deletion Audit Trail.
+            This action cannot be undone. The record will be permanently removed but logged in the PR Deletion Audit Log.
           </p>
         </div>
       </div>
