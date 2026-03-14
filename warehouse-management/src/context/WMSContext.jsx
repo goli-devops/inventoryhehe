@@ -4,6 +4,7 @@ import supabase from '../config/supabase';
 import PurchaseRequestService from '../services/purchaseRequestService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
+import AuditLogService from '../services/AuditLogService';
 
 const WMSContext = createContext();
 
@@ -35,7 +36,7 @@ export const WMSProvider = ({ children }) => {
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prs, pos, inv, ast] = await Promise.all([
+      const [prs, inv, ast] = await Promise.all([
         PurchaseRequestService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
@@ -130,9 +131,17 @@ export const WMSProvider = ({ children }) => {
   };
 
   const deletePR = async (id) => {
-    const success = await PurchaseRequestService.delete(id);
+    const { success, snapshot } = await PurchaseRequestService.delete(id);
     if (success) {
       setPurchaseRequests(prev => prev.filter(pr => pr.id !== id));
+      // Write audit log entry — non-blocking
+      await AuditLogService.log({
+        action:      'Deleted',
+        prNumber:    snapshot?.pr_number || snapshot?.prNumber || id,
+        prId:        id,
+        performedBy: currentUser.name,
+        snapshot,
+      });
     }
     return success;
   };

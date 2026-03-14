@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
   Plus, Filter, Download, FileText, Eye, Edit, Trash2,
-  ChevronLeft, ChevronRight, X, FileSpreadsheet, Search
+  ChevronLeft, ChevronRight, X, FileSpreadsheet, Search, ShieldAlert
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -9,6 +9,7 @@ import Modal from '../../components/common/Modal';
 import PRForm from './PRForm';
 import PRDetails from './PRDetails';
 import PREditForm from './PREditForm';
+import PRAuditLog from './PRAuditLog';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -182,6 +183,7 @@ const PurchaseRequests = () => {
   const { departments } = useSettings();
   const prs = purchaseRequests ?? [];
 
+  const [activeTab,         setActiveTab]         = useState('list');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isViewModalOpen,   setIsViewModalOpen]   = useState(false);
   const [isEditModalOpen,   setIsEditModalOpen]   = useState(false);
@@ -254,6 +256,34 @@ const PurchaseRequests = () => {
 
   return (
     <div className="space-y-4">
+
+      {/* Module Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button onClick={() => setActiveTab('list')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'list'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          <FileText size={15} />
+          Purchase Requests
+        </button>
+        <button onClick={() => setActiveTab('audit')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'audit'
+              ? 'border-red-500 text-red-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          <ShieldAlert size={15} />
+          Deletion Audit Log
+        </button>
+      </div>
+
+      {/* ── Audit Log Tab ── */}
+      {activeTab === 'audit' && <PRAuditLog />}
+
+      {/* ── PR List Tab ── */}
+      {activeTab === 'list' && <div className="space-y-4">
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -473,6 +503,7 @@ const PurchaseRequests = () => {
           <PREditForm pr={selectedPR} onClose={() => setIsEditModalOpen(false)} onSuccess={() => {}} />
         )}
       </Modal>
+      </div>} {/* end activeTab === 'list' */}
     </div>
   );
 };

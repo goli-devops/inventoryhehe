@@ -241,15 +241,19 @@ const PurchaseRequestService = {
 
   async delete(id) {
     try {
+      // Fetch full PR before deleting so callers can snapshot it
+      const snapshot = await this.getById(id);
+
       const { error } = await supabase
         .from('purchase_requests')
         .delete()
         .eq('id', id);
+
       if (error) throw error;
-      return true;
+      return { success: true, snapshot };
     } catch (error) {
       console.error('Error deleting PR:', error);
-      return false;
+      return { success: false, snapshot: null };
     }
   },
 
