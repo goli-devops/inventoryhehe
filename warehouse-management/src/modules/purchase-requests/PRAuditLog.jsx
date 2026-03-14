@@ -30,7 +30,12 @@ const SnapshotModal = ({ entry, onClose }) => {
         </div>
       </div>
 
-      {pr ? (
+      {entry.reason && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Reason for Deletion</p>
+          <p className="text-sm text-amber-800 italic">"{entry.reason}"</p>
+        </div>
+      )}
         <>
           {/* Core fields */}
           <div className="grid grid-cols-2 gap-4">
@@ -95,9 +100,6 @@ const SnapshotModal = ({ entry, onClose }) => {
             </div>
           )}
         </>
-      ) : (
-        <p className="text-sm text-gray-400 italic text-center py-4">No snapshot data available.</p>
-      )}
 
       <div className="flex justify-end pt-3 border-t border-gray-200">
         <button onClick={onClose}
@@ -178,7 +180,7 @@ const PRAuditLog = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['PR Number', 'JOR Number', 'Requester\'s Name', 'Department', 'Status at Deletion', 'Deleted By', 'Deleted At', 'Details'].map(h => (
+                {['PR Number', 'JOR Number', 'Requester\'s Name', 'Department', 'Status at Deletion', 'Deleted By', 'Deleted At', 'Reason', 'Details'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -188,7 +190,7 @@ const PRAuditLog = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-400">
                     <RefreshCw size={24} className="animate-spin mx-auto mb-2 opacity-40" />
                     <p className="text-sm">Loading audit log…</p>
                   </td>
@@ -234,6 +236,11 @@ const PRAuditLog = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                       {entry.performed_at ? new Date(entry.performed_at).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-48">
+                      {entry.reason
+                        ? <span className="italic">"{entry.reason}"</span>
+                        : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <button onClick={() => setSelectedEntry(entry)}

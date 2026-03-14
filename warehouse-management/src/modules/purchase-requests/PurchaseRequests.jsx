@@ -79,7 +79,84 @@ const exportToPDF = async (rows) => {
   doc.save(`PurchaseRequests_${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+// ─── Delete Confirmation Modal ────────────────────────────────────────────────
+const DeleteConfirmModal = ({ pr, onConfirm, onCancel }) => {
+  const [reason, setReason] = useState('');
+  const [error,  setError]  = useState('');
+
+  const handleConfirm = () => {
+    if (!reason.trim()) { setError('Please provide a reason for deletion.'); return; }
+    onConfirm(reason.trim());
+  };
+
+  if (!pr) return null;
+  return (
+    <div className="space-y-5">
+      {/* Warning banner */}
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+        <Trash2 size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-red-700">You are about to delete a Purchase Request</p>
+          <p className="text-sm text-red-600 mt-0.5">
+            This action cannot be undone. The record will be permanently removed but logged in the Deletion Audit Trail.
+          </p>
+        </div>
+      </div>
+
+      {/* PR summary */}
+      <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+        <div>
+          <p className="text-xs text-gray-400">PR Number</p>
+          <p className="font-semibold text-gray-800">{pr.pr_number || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">JOR Number</p>
+          <p className="font-semibold text-gray-800">{pr.jor_number || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Requester's Name</p>
+          <p className="font-medium text-gray-700">{pr.requested_by || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Status</p>
+          <p className="font-medium text-gray-700">{pr.status || '—'}</p>
+        </div>
+      </div>
+
+      {/* Reason input */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Reason for Deletion <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={reason}
+          onChange={e => { setReason(e.target.value); setError(''); }}
+          rows={3}
+          placeholder="e.g. Duplicate entry, incorrect items, cancelled by requester…"
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none ${
+            error ? 'border-red-400 bg-red-50' : 'border-gray-300'
+          }`}
+        />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+        <button onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+        <button onClick={handleConfirm}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+          <Trash2 size={14} />
+          Confirm Delete
+        </button>
+      </div>
+    </div>
+  );
+};
+
+
 const StatusBadge = ({ status }) => {
   const map = {
     Submitted:    'bg-blue-100 text-blue-800',
@@ -188,6 +265,7 @@ const PurchaseRequests = () => {
   const [isViewModalOpen,   setIsViewModalOpen]   = useState(false);
   const [isEditModalOpen,   setIsEditModalOpen]   = useState(false);
   const [selectedPR,        setSelectedPR]        = useState(null);
+  const [deleteTarget,      setDeleteTarget]      = useState(null);
   const [showFilters,       setShowFilters]       = useState(false);
   const [filters,           setFilters]           = useState(EMPTY_FILTERS);
   const [search,            setSearch]            = useState('');
@@ -234,10 +312,11 @@ const PurchaseRequests = () => {
 
   const handleView   = (pr) => { setSelectedPR(pr); setIsViewModalOpen(true); };
   const handleEdit   = (pr) => { setSelectedPR(pr); setIsEditModalOpen(true); };
-  const handleDelete = async (pr) => {
-    if (!window.confirm(`Delete PR ${pr.pr_number || pr.prNumber}?`)) return;
-    const ok = await deletePR(pr.id);
+  const handleDelete   = (pr) => setDeleteTarget(pr);
+  const handleDeleteConfirm = async (reason) => {
+    const ok = await deletePR(deleteTarget.id, reason);
     if (!ok) alert('Failed to delete Purchase Request');
+    setDeleteTarget(null);
   };
 
   const handleExportExcel = async () => {
@@ -275,7 +354,7 @@ const PurchaseRequests = () => {
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}>
           <ShieldAlert size={15} />
-          Deletion Audit Log
+          PR Deletion Audit Log
         </button>
       </div>
 
@@ -502,6 +581,14 @@ const PurchaseRequests = () => {
         {selectedPR && (
           <PREditForm pr={selectedPR} onClose={() => setIsEditModalOpen(false)} onSuccess={() => {}} />
         )}
+      </Modal>
+
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Purchase Request" size="md">
+        <DeleteConfirmModal
+          pr={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </Modal>
       </div>} {/* end activeTab === 'list' */}
     </div>
