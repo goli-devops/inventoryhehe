@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
@@ -28,7 +28,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-950 via-blue-900 to-green-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center p-4">
 
       {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -42,12 +42,14 @@ const LoginPage = () => {
           {/* Brand header */}
           <div className="bg-gradient-to-r from-blue-900 to-blue-700 px-8 py-8 text-center">
             <div className="flex items-center justify-center mb-3">
-              <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                <Package size={24} className="text-white" />
-              </div>
+              <img
+                src="/goli_logo.jpg"
+                alt="GOLI ICT Logo"
+                className="h-16 w-auto object-contain drop-shadow-lg"
+                onError={e => { e.target.style.display = 'none'; }}
+              />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wide">ICT ASSET – WMS</h1>
-            <p className="text-blue-200 text-sm mt-1">Warehouse Management System</p>
+            <p className="text-blue-200 text-sm mt-1">ICT Asset - Warehouse Management System</p>
           </div>
 
           {/* Form body */}
@@ -100,7 +102,7 @@ const LoginPage = () => {
               </div>
 
               <div className="flex justify-end -mt-2">
-                <p className="text-xs text-gray-400">Contact your administrator to create your account or if you want to reset your password.</p>
+                <p className="text-xs text-gray-400">Contact your administrator to reset your password.</p>
               </div>
 
               <button
@@ -118,7 +120,7 @@ const LoginPage = () => {
         </div>
 
         <p className="text-center text-blue-300 text-xs mt-6">
-          © {new Date().getFullYear()} Global Officium Limited Inc. — ICT Asset Use Only
+          © {new Date().getFullYear()} Global Officium Limited Inc. — Internal Use Only
         </p>
       </div>
     </div>

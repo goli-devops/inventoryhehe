@@ -1,11 +1,12 @@
 import React from 'react';
 import { Bell, Search, Menu } from 'lucide-react';
-import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, ShoppingCart, Package, Scan, BarChart3, Settings, Users } from 'lucide-react';
 
 const Header = ({ activeModule, setSidebarOpen }) => {
   const modules = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'pr', name: 'Purchase Requests', icon: FileText },
+    { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
     { id: 'inventory', name: 'Inventory', icon: Package },
     { id: 'assets', name: 'Asset Tracking', icon: Scan },
     { id: 'reports', name: 'Reports & Analytics', icon: BarChart3 },
@@ -26,6 +27,13 @@ const Header = ({ activeModule, setSidebarOpen }) => {
           >
             <Menu size={20} />
           </button>
+          <img
+            src="/goli_logo.jpg"
+            alt="GOLI ICT"
+            className="h-9 w-auto object-contain"
+            onError={e => { e.target.style.display = 'none'; }}
+          />
+          <div className="w-px h-8 bg-gray-200" />
           <div>
             <h2 className="text-2xl font-bold text-gray-800">
               {currentModule?.name || 'Dashboard'}
