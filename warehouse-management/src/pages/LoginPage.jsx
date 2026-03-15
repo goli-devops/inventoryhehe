@@ -54,7 +54,7 @@ const LoginPage = () => {
 
           {/* Form body */}
           <div className="px-8 py-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-1">Welcome back</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-1">Welcome back!</h2>
             <p className="text-sm text-gray-500 mb-6">Sign in to your account to continue</p>
 
             {error && (
@@ -102,7 +102,7 @@ const LoginPage = () => {
               </div>
 
               <div className="flex justify-end -mt-2">
-                <p className="text-xs text-gray-400">Contact your administrator to reset your password.</p>
+                <p className="text-xs text-gray-400">Contact your administrator to create an account or to reset your password.</p>
               </div>
 
               <button
