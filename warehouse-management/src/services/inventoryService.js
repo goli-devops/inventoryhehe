@@ -65,7 +65,7 @@ const InventoryService = {
       return data || [];
     } catch (error) {
       console.error('Error getting all inventory items:', error);
-      return [];
+      return null;
     }
   },
 
@@ -92,42 +92,78 @@ const InventoryService = {
       const existingItem = await this.getById(id);
       if (!existingItem) return null;
 
-      const updatedHistory = [
-        ...existingItem.history,
-        {
-          action: 'Updated',
-          date: new Date().toISOString(),
-          user: updates.updatedBy || 'System',
-          quantity: updates.quantity || existingItem.quantity
-        }
-      ];
+      // ── Build new payload first so we can diff against existing ──
+      const newQty      = updates.quantity      ?? existingItem.quantity;
+      const newMinStock = updates.minStockLevel  ?? updates.min_stock_level  ?? existingItem.min_stock_level;
 
-      // Explicitly map camelCase → snake_case so Supabase never receives unknown columns
-      const newQty        = updates.quantity        ?? existingItem.quantity;
-      const newMinStock   = updates.minStockLevel   ?? updates.min_stock_level  ?? existingItem.min_stock_level;
-
-      // Recalculate status so low/out-of-stock badges always stay in sync
       let derivedStatus = 'In Stock';
-      if (newQty === 0)              derivedStatus = 'Out of Stock';
+      if (newQty === 0)               derivedStatus = 'Out of Stock';
       else if (newQty <= newMinStock) derivedStatus = 'Low Stock';
 
-      const payload = {
-        description:    updates.description    ?? existingItem.description,
-        category:       updates.category       ?? existingItem.category,
-        quantity:       newQty,
-        unit:           updates.unit           ?? existingItem.unit,
-        location:       updates.location       ?? existingItem.location,
-        supplier:       updates.supplier       ?? existingItem.supplier,
-        status:         updates.status         ?? derivedStatus,
+      const newData = {
+        description:     updates.description    ?? existingItem.description,
+        category:        updates.category       ?? existingItem.category,
+        quantity:        newQty,
+        unit:            updates.unit           ?? existingItem.unit,
+        location:        updates.location       ?? existingItem.location,
+        supplier:        updates.supplier       ?? existingItem.supplier,
         min_stock_level: newMinStock,
         max_stock_level: updates.maxStockLevel  ?? updates.max_stock_level  ?? existingItem.max_stock_level,
         unit_price:      updates.unitPrice      ?? updates.unit_price       ?? existingItem.unit_price,
-        history:         updatedHistory,
+        status:          updates.status         ?? derivedStatus,
       };
+
+      // ── Field-level diff ──
+      const FIELD_LABELS = {
+        description:     'Description',
+        category:        'Category',
+        quantity:        'Quantity',
+        unit:            'Unit',
+        location:        'Location',
+        supplier:        'Supplier',
+        min_stock_level: 'Min Stock Level',
+        max_stock_level: 'Max Stock Level',
+        unit_price:      'Unit Price',
+        status:          'Status',
+      };
+
+      const now = new Date().toISOString();
+      const updatedBy = updates.updatedBy || 'System';
+      const diffEntries = [];
+
+      Object.keys(FIELD_LABELS).forEach(field => {
+        const oldRaw = existingItem[field];
+        const newRaw = newData[field];
+        // Normalize for comparison
+        const normalize = (v) => (v == null ? '' : String(v).trim());
+        const oldVal = normalize(oldRaw);
+        const newVal = normalize(newRaw);
+        if (oldVal !== newVal) {
+          const label = FIELD_LABELS[field];
+          // Format currency fields
+          const fmt = (v, f) =>
+            (f === 'unit_price') ? `₱${parseFloat(v || 0).toFixed(2)}` : String(v || '(empty)');
+          diffEntries.push({
+            action:  'Updated',
+            date:    now,
+            user:    updatedBy,
+            field:   label,
+            from:    oldVal || '(empty)',
+            to:      newVal || '(empty)',
+            details: `${label} changed from "${fmt(oldVal, field)}" to "${fmt(newVal, field)}"`,
+          });
+        }
+      });
+
+      const newEntries = diffEntries.length > 0
+        ? diffEntries
+        : [{ action: 'Updated', date: now, user: updatedBy, details: 'No changes detected' }];
+
+      const updatedHistory = [...(existingItem.history || []), ...newEntries];
 
       const { data, error } = await supabase
         .from('inventory')
-        .update(payload)
+        .update({ ...newData, history: updatedHistory })
         .eq('id', id)
         .select()
         .single();
@@ -153,7 +189,7 @@ const InventoryService = {
       else if (newQuantity <= item.min_stock_level) status = 'Low Stock';
 
       const updatedHistory = [
-        ...item.history,
+        ...(item.history || []),
         {
           action: type,
           date: new Date().toISOString(),
@@ -186,16 +222,16 @@ const InventoryService = {
   // Delete Inventory Item
   async delete(id) {
     try {
+      const snapshot = await this.getById(id);
       const { error } = await supabase
         .from('inventory')
         .delete()
         .eq('id', id);
-
       if (error) throw error;
-      return true;
+      return { success: true, snapshot };
     } catch (error) {
       console.error('Error deleting inventory item:', error);
-      return false;
+      return { success: false, snapshot: null };
     }
   },
 

@@ -4,7 +4,8 @@ import supabase from '../config/supabase';
 import PurchaseRequestService from '../services/purchaseRequestService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
-import AuditLogService from '../services/AuditLogService';
+import AuditLogService from '../services/auditLogService';
+import InventoryAuditLogService from '../services/inventoryAuditLogService';
 
 const WMSContext = createContext();
 
@@ -36,40 +37,35 @@ export const WMSProvider = ({ children }) => {
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prs, pos, inv, ast] = await Promise.all([
+      const [prs, inv, ast] = await Promise.allSettled([
         PurchaseRequestService.getAll(),
         InventoryService.getAll(),
         AssetService.getAll()
       ]);
 
-      if (import.meta.env.DEV) {
-        console.log('[WMS] Loaded:', { prs: prs?.length, inv: inv?.length, ast: ast?.length });
-      }
+      const get = (result) => result.status === 'fulfilled' ? result.value : null;
 
-      setPurchaseRequests(Array.isArray(prs) ? prs : []);
-      setInventory(Array.isArray(inv) ? inv : []);
-      setAssets(Array.isArray(ast) ? ast : []);
+      const prsData = get(prs);
+      const invData = get(inv);
+      const astData = get(ast);
+
+      if (Array.isArray(prsData)) setPurchaseRequests(prsData);
+      if (Array.isArray(invData)) setInventory(invData);
+      if (Array.isArray(astData)) setAssets(astData);
     } catch (error) {
       console.error('[WMS] loadAllData failed:', error);
-      setPurchaseRequests(p => Array.isArray(p) ? p : []);
-      setInventory(p => Array.isArray(p) ? p : []);
-      setAssets(p => Array.isArray(p) ? p : []);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // When session is available, explicitly set it on the supabase client
-  // then load data — this guarantees the auth token is attached before any query
   useEffect(() => {
-    if (!session?.access_token) return;
-
-    supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    }).then(() => {
-      loadAllData();
-    });
+    if (!session?.access_token) {
+      console.log('[WMS] No session yet — skipping loadAllData');
+      return;
+    }
+    console.log('[WMS] Session ready, calling loadAllData. Token prefix:', session.access_token.slice(0, 20));
+    loadAllData();
   }, [session?.access_token, loadAllData]);
 
   // Supabase Realtime — keep all tables in sync automatically
@@ -183,10 +179,18 @@ export const WMSProvider = ({ children }) => {
     return updatedItem;
   };
 
-  const deleteInventoryItem = async (id) => {
-    const success = await InventoryService.delete(id);
+  const deleteInventoryItem = async (id, reason = '') => {
+    const { success, snapshot } = await InventoryService.delete(id);
     if (success) {
       setInventory(prev => prev.filter(item => item.id !== id));
+      await InventoryAuditLogService.log({
+        action:      'Deleted',
+        itemCode:    snapshot?.item_code || id,
+        itemId:      id,
+        performedBy: currentUser.name,
+        snapshot,
+        reason,
+      });
     }
     return success;
   };

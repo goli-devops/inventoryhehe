@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Filter, Package, Eye, Edit, Trash2,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download, Search,
-  AlertTriangle, AlertCircle
+  AlertTriangle, AlertCircle, ShieldAlert, FileText
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -10,6 +10,7 @@ import Modal from '../../components/common/Modal';
 import InventoryForm from './InventoryForm';
 import InventoryDetails from './InventoryDetails';
 import InventoryEditForm from './InventoryEditForm';
+import InventoryAuditLog from './InventoryAuditLog';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -89,6 +90,72 @@ const exportToPDF = async (rows) => {
   });
 
   doc.save(`Inventory_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+// ─── Delete Confirmation Modal ────────────────────────────────────────────────
+const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
+  const [reason, setReason] = useState('');
+  const [error,  setError]  = useState('');
+
+  const handleConfirm = () => {
+    if (!reason.trim()) { setError('Please provide a reason for deletion.'); return; }
+    onConfirm(reason.trim());
+  };
+
+  if (!item) return null;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+        <Trash2 size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-red-700">You are about to delete an Inventory Item</p>
+          <p className="text-sm text-red-600 mt-0.5">This action cannot be undone. The record will be permanently removed but logged in the Deletion Audit Trail.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+        <div>
+          <p className="text-xs text-gray-400">Item Code</p>
+          <p className="font-semibold text-gray-800">{item.item_code || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Category</p>
+          <p className="font-semibold text-gray-800">{item.category || '—'}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs text-gray-400">Description</p>
+          <p className="font-medium text-gray-700">{item.description || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Quantity</p>
+          <p className="font-medium text-gray-700">{item.quantity ?? 0} {item.unit}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400">Status</p>
+          <p className="font-medium text-gray-700">{item.status || '—'}</p>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Reason for Deletion <span className="text-red-500">*</span>
+        </label>
+        <textarea value={reason} onChange={e => { setReason(e.target.value); setError(''); }} rows={3}
+          placeholder="e.g. Item disposed, duplicate entry, damaged beyond use…"
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none ${error ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+        <button onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+        <button onClick={handleConfirm}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+          <Trash2 size={14} />
+          Confirm Delete
+        </button>
+      </div>
+    </div>
+  );
 };
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -172,10 +239,12 @@ const Inventory = () => {
   const inventory = rawInventory ?? [];
   const stats = getStats();
 
+  const [activeTab,         setActiveTab]         = useState('list');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isViewModalOpen,   setIsViewModalOpen]   = useState(false);
   const [isEditModalOpen,   setIsEditModalOpen]   = useState(false);
   const [selectedItem,      setSelectedItem]      = useState(null);
+  const [deleteTarget,      setDeleteTarget]      = useState(null);
   const [showFilters,       setShowFilters]       = useState(false);
   const [filters,           setFilters]           = useState(EMPTY_FILTERS);
   const [search,            setSearch]            = useState('');
@@ -215,10 +284,11 @@ const Inventory = () => {
 
   const handleView   = (item) => { setSelectedItem(item); setIsViewModalOpen(true); };
   const handleEdit   = (item) => { setSelectedItem(item); setIsEditModalOpen(true); };
-  const handleDelete = async (item) => {
-    if (!window.confirm(`Delete "${item.description}"?`)) return;
-    const ok = await deleteInventoryItem(item.id);
+  const handleDelete = (item) => setDeleteTarget(item);
+  const handleDeleteConfirm = async (reason) => {
+    const ok = await deleteInventoryItem(deleteTarget.id, reason);
     if (!ok) alert('Failed to delete inventory item');
+    setDeleteTarget(null);
   };
 
   const handleExportExcel = async () => {
@@ -237,6 +307,30 @@ const Inventory = () => {
 
   return (
     <div className="space-y-4">
+
+      {/* Module Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button onClick={() => setActiveTab('list')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          <Package size={15} />
+          Inventory
+        </button>
+        <button onClick={() => setActiveTab('audit')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'audit' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}>
+          <ShieldAlert size={15} />
+          Deletion Audit Log
+        </button>
+      </div>
+
+      {/* ── Audit Log Tab ── */}
+      {activeTab === 'audit' && <InventoryAuditLog />}
+
+      {/* ── Inventory List Tab ── */}
+      {activeTab === 'list' && <div className="space-y-4">
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -452,6 +546,15 @@ const Inventory = () => {
           <InventoryEditForm item={selectedItem} onClose={() => setIsEditModalOpen(false)} onSuccess={() => {}} />
         )}
       </Modal>
+
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Inventory Item" size="md">
+        <DeleteConfirmModal
+          item={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      </Modal>
+      </div>} {/* end activeTab === 'list' */}
     </div>
   );
 };
