@@ -1,11 +1,13 @@
 import supabase from '../config/supabase';
 
 const AssetService = {
-  // Generate unique asset ID
+  // Generate unique asset ID — uses full timestamp + random suffix to prevent
+  // duplicates when multiple assets are created in the same millisecond (bulk deploy)
   generateAssetID(category) {
-    const timestamp = Date.now();
     const categoryCode = category.substring(0, 3).toUpperCase();
-    return `${categoryCode}-${timestamp.toString().slice(-6)}`;
+    const timestamp    = Date.now().toString().slice(-8);
+    const random       = Math.floor(Math.random() * 9000 + 1000); // 4-digit random
+    return `${categoryCode}-${timestamp}${random}`;
   },
 
   // Generate QR Code data
