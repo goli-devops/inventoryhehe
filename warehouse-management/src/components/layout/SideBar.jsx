@@ -102,7 +102,7 @@ const LogoutModal = ({ displayName, initials, onConfirm, onCancel, signingOut })
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const Sidebar = ({ activeModule, setActiveModule, setSidebarOpen }) => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, displayName } = useAuth();
   const [signingOut,      setSigningOut]      = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -116,12 +116,8 @@ const Sidebar = ({ activeModule, setActiveModule, setSidebarOpen }) => {
     { id: 'settings',  name: 'Settings',            icon: Settings        },
   ];
 
-  const displayName = user?.user_metadata?.full_name
-    || user?.user_metadata?.name
-    || user?.email?.split('@')[0]
-    || 'User';
   const displayRole = user?.user_metadata?.role || 'Staff';
-  const initials    = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const initials    = (displayName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const handleConfirmSignOut = async () => {
     setSigningOut(true);

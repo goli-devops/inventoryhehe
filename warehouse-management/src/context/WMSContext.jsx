@@ -23,14 +23,11 @@ export const WMSProvider = ({ children }) => {
   const [inventory, setInventory] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const { user: authUser, session } = useAuth();
+  const { user: authUser, session, displayName: authDisplayName } = useAuth();
 
   // Derive a display name from the auth user's metadata or email
   const currentUser = {
-    name:  authUser?.user_metadata?.full_name
-        || authUser?.user_metadata?.name
-        || authUser?.email?.split('@')[0]
-        || 'System',
+    name:  authDisplayName || 'System',
     email: authUser?.email || '',
     role:  authUser?.user_metadata?.role || 'Staff',
   };

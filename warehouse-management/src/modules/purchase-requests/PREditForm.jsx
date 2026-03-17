@@ -15,12 +15,9 @@ const STATUSES = ['Submitted', 'For Canvass', 'Approved', 'Cancelled', 'Complete
 const PREditForm = ({ pr, onClose, onSuccess }) => {
   const { updatePR } = useWMS();
   const { departments, units } = useSettings();
-  const { user } = useAuth();
+  const { user, displayName } = useAuth();
 
-  const displayName = user?.user_metadata?.full_name
-    || user?.user_metadata?.name
-    || user?.email?.split('@')[0]
-    || 'System';
+  // displayName comes from AuthContext (reads profiles table)
 
   // Deep-clone the original PR data on mount — used as the diff baseline.
   // We can't use `pr` directly because React may mutate the reference.
@@ -38,7 +35,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
     terms:         pr.terms          || '',
     status:        pr.status         || 'Submitted',
     notes:         pr.notes          || '',
-    items:         pr.items          || [{ description: '', quantity: '', unit: '', estimatedPrice: 0 }],
+    items:         pr.items          || [{ description: '', quantity: 1, unit: '', estimatedPrice: 0 }],
   });
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +52,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
   const addItem = () => setFormData(prev => ({
     ...prev,
-    items: [...prev.items, { description: '', quantity: '', unit: '', estimatedPrice: 0 }],
+    items: [...prev.items, { description: '', quantity: 1, unit: '', estimatedPrice: 0 }],
   }));
 
   const removeItem = (index) => {
@@ -112,8 +109,8 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
           <label className={labelCls}>PR Number <span className="text-red-500">*</span></label>
           <div className="relative">
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" inputMode="numeric" name="prNumber" value={formData.prNumber}
-              onChange={e => setFormData(prev => ({ ...prev, prNumber: e.target.value.replace(/\D/g, '') }))}
+            <input type="text" name="prNumber" value={formData.prNumber}
+              onChange={e => setFormData(prev => ({ ...prev, prNumber: e.target.value }))}
               required placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
@@ -122,8 +119,8 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
           <label className={labelCls}>JOR Number</label>
           <div className="relative">
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" inputMode="numeric" name="jorNumber" value={formData.jorNumber}
-              onChange={e => setFormData(prev => ({ ...prev, jorNumber: e.target.value.replace(/\D/g, '') }))}
+            <input type="text" name="jorNumber" value={formData.jorNumber}
+              onChange={e => setFormData(prev => ({ ...prev, jorNumber: e.target.value }))}
               placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
@@ -138,7 +135,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
             options={STATUSES} placeholder="Select Status" required />
         </div>
         <div>
-          <label className={labelCls}>Branch/Department</label>
+          <label className={labelCls}>Department</label>
           <FloatingSelect name="department" value={formData.department} onChange={handleInputChange}
             options={departments} placeholder="Select Department" />
         </div>
@@ -195,7 +192,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
             <div className="col-span-5">Description</div>
             <div className="col-span-2">Qty</div>
             <div className="col-span-2">Unit</div>
-            <div className="col-span-2">Est. Price/unit</div>
+            <div className="col-span-2">Est. Price</div>
             <div className="col-span-1"></div>
           </div>
           {formData.items.map((item, index) => (
@@ -207,7 +204,7 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
               </div>
               <div className="col-span-2">
                 <input type="number" placeholder="Qty" value={item.quantity} min="1"
-                  onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || '')}
+                  onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
                   className={inputCls} />
               </div>
               <div className="col-span-2">
@@ -242,9 +239,9 @@ const PREditForm = ({ pr, onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className={labelCls}>Specifications/Notes</label>
+        <label className={labelCls}>Notes</label>
         <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
-          placeholder="Additional notes or specifications..." className={inputCls} />
+          placeholder="Additional notes or requirements..." className={inputCls} />
       </div>
 
       {/* Actions */}
