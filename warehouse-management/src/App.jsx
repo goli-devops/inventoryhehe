@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { WMSProvider } from './context/WMSContext';
+import { CalendarProvider } from './context/CalendarContext';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
 import { Loader } from 'lucide-react';
@@ -29,7 +30,9 @@ const AppContent = () => {
   return (
     <SettingsProvider>
       <WMSProvider>
-        <Layout />
+        <CalendarProvider>
+          <Layout />
+        </CalendarProvider>
       </WMSProvider>
     </SettingsProvider>
   );

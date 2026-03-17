@@ -115,7 +115,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Select Unit</option>
+            <option value="">Unit</option>
             {units.map(u => (
               <option key={u} value={u}>{u}</option>
             ))}
