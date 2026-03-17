@@ -6,6 +6,7 @@ import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
 import AuditLogService from '../services/auditLogService';
 import InventoryAuditLogService from '../services/inventoryAuditLogService';
+import AssetAuditLogService from '../services/assetAuditLogService';
 
 const WMSContext = createContext();
 
@@ -287,10 +288,41 @@ export const WMSProvider = ({ children }) => {
     return updatedAsset;
   };
 
-  const deleteAsset = async (id) => {
-    const success = await AssetService.delete(id);
+  const cancelAsset = async (id, reason) => {
+    const result = await AssetService.cancel(id, reason, currentUser.name);
+    if (!result) return false;
+    // Return quantity to inventory if linked
+    if (result.inventoryItemId) {
+      await InventoryService.adjustQuantity(result.inventoryItemId, 1, 'Returned from Cancelled Asset', currentUser.name);
+      const updated = await InventoryService.getAll();
+      if (Array.isArray(updated)) setInventory(updated);
+    }
+    // Update asset in state
+    setAssets(prev => prev.map(a => a.id === id ? result.asset : a));
+    // Write audit log
+    await AssetAuditLogService.log({
+      action:      'Cancelled',
+      assetId:     id,
+      assetCode:   result.asset?.asset_id || id,
+      performedBy: currentUser.name,
+      snapshot:    result.asset,
+      reason,
+    });
+    return true;
+  };
+
+  const deleteAsset = async (id, reason = '') => {
+    const { success, snapshot } = await AssetService.delete(id);
     if (success) {
       setAssets(prev => prev.filter(asset => asset.id !== id));
+      await AssetAuditLogService.log({
+        action:      'Deleted',
+        assetId:     id,
+        assetCode:   snapshot?.asset_id || id,
+        performedBy: currentUser.name,
+        snapshot,
+        reason,
+      });
     }
     return success;
   };
@@ -336,6 +368,7 @@ export const WMSProvider = ({ children }) => {
     createAsset,
     deployAsset,
     updateAsset,
+    cancelAsset,
     assignAsset,
     returnAsset,
     deleteAsset,

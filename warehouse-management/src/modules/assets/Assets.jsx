@@ -1,181 +1,469 @@
-import React, { useState } from 'react';
-import { Plus, Filter, Download, Scan, Eye, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  Plus, Filter, Scan, Eye, Edit, Trash2, Ban,
+  ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
+  Search, ShieldAlert
+} from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
 import AssetForm from './AssetForm';
 import AssetEditForm from './AssetEditForm';
+import AssetDetails from './AssetDetails';
+import AssetAuditLog from './AssetAuditLog';
 import QRModal from '../../components/common/QRModal';
 import QRScanner from '../../components/common/QRScanner';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
-const statusClass = (status) => {
-  switch (status) {
-    case 'Available':   return 'bg-green-100 text-green-800';
-    case 'In Use':      return 'bg-blue-100 text-blue-800';
-    case 'Maintenance': return 'bg-yellow-100 text-yellow-800';
-    case 'Repair':      return 'bg-orange-100 text-orange-800';
-    case 'Retired':     return 'bg-gray-100 text-gray-800';
-    default:            return 'bg-gray-100 text-gray-600';
-  }
+// ─── Export helpers ───────────────────────────────────────────────────────────
+const loadScript = (src) =>
+  new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+
+const exportToExcel = async (rows) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const XLSX = window.XLSX;
+  const data = [
+    ['Asset ID','Description','Category','Serial No.','Location','Assigned To','Status','Purchase Date','Purchase Price','Warranty','Tagged'],
+    ...rows.map(a => [
+      a.asset_id || '', a.description || '', a.category || '',
+      a.serial_number || '', a.location || '',
+      a.assigned_to || '', a.status || '',
+      a.purchase_date ? new Date(a.purchase_date).toLocaleDateString() : '',
+      a.purchase_price ?? 0, a.warranty || '',
+      (a.is_tagged || a.isTagged) ? 'Yes' : 'No',
+    ]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+  XLSX.writeFile(wb, `Assets_${new Date().toISOString().split('T')[0]}.xlsx`);
 };
 
+const exportToPDF = async (rows) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(16);
+  doc.text('GOLI ICT — Asset Tracking', 14, 15);
+  doc.setFontSize(9);
+  doc.text(`Generated: ${new Date().toLocaleString()}  |  Total: ${rows.length}`, 14, 22);
+  doc.autoTable({
+    startY: 27,
+    head: [['Asset ID','Description','Category','Location','Assigned To','Status','Purchase Date','Price']],
+    body: rows.map(a => [
+      a.asset_id || '', a.description || '', a.category || '',
+      a.location || '', a.assigned_to || '', a.status || '',
+      a.purchase_date ? new Date(a.purchase_date).toLocaleDateString() : '',
+      `₱${parseFloat(a.purchase_price || 0).toLocaleString()}`,
+    ]),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [30, 58, 138] },
+    alternateRowStyles: { fillColor: [239, 246, 255] },
+  });
+  doc.save(`Assets_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+const STATUS_STYLES = {
+  Available:   'bg-green-100 text-green-800',
+  'In Use':    'bg-blue-100 text-blue-800',
+  Maintenance: 'bg-yellow-100 text-yellow-800',
+  Repair:      'bg-orange-100 text-orange-800',
+  Retired:     'bg-gray-100 text-gray-800',
+  Cancelled:   'bg-red-100 text-red-800',
+};
+const StatusBadge = ({ status }) => (
+  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[status] || 'bg-gray-100 text-gray-600'}`}>
+    {status}
+  </span>
+);
+
+// ─── Cancel Confirm Modal ─────────────────────────────────────────────────────
+const CancelConfirmModal = ({ asset, onConfirm, onCancel }) => {
+  const [reason, setReason] = useState('');
+  const [error,  setError]  = useState('');
+  if (!asset) return null;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+        <Ban size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-red-700">You are about to cancel this asset</p>
+          <p className="text-sm text-red-600 mt-0.5">
+            The asset status will be set to Cancelled. If it was deployed from inventory, 1 unit will be returned to stock.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+        <div><p className="text-xs text-gray-400">Asset ID</p><p className="font-semibold text-gray-800">{asset.asset_id || '—'}</p></div>
+        <div><p className="text-xs text-gray-400">Category</p><p className="font-semibold text-gray-800">{asset.category || '—'}</p></div>
+        <div className="col-span-2"><p className="text-xs text-gray-400">Description</p><p className="font-medium text-gray-700">{asset.description || '—'}</p></div>
+        <div><p className="text-xs text-gray-400">Assigned To</p><p className="font-medium text-gray-700">{asset.assigned_to || '—'}</p></div>
+        <div><p className="text-xs text-gray-400">Current Status</p><p className="font-medium text-gray-700">{asset.status || '—'}</p></div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Reason for Cancellation <span className="text-red-500">*</span>
+        </label>
+        <textarea value={reason} onChange={e => { setReason(e.target.value); setError(''); }} rows={3}
+          placeholder="e.g. Device damaged beyond repair, lost, stolen…"
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none ${error ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+        <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Keep Asset</button>
+        <button onClick={() => { if (!reason.trim()) { setError('Please provide a reason.'); return; } onConfirm(reason.trim()); }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+          <Ban size={14} /> Confirm Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+const DeleteConfirmModal = ({ asset, onConfirm, onCancel }) => {
+  const [reason, setReason] = useState('');
+  const [error,  setError]  = useState('');
+  if (!asset) return null;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+        <Trash2 size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-red-700">You are about to permanently delete this asset</p>
+          <p className="text-sm text-red-600 mt-0.5">This action cannot be undone. The record will be logged in the Audit Trail.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+        <div><p className="text-xs text-gray-400">Asset ID</p><p className="font-semibold text-gray-800">{asset.asset_id || '—'}</p></div>
+        <div><p className="text-xs text-gray-400">Status</p><p className="font-semibold text-gray-800">{asset.status || '—'}</p></div>
+        <div className="col-span-2"><p className="text-xs text-gray-400">Description</p><p className="font-medium text-gray-700">{asset.description || '—'}</p></div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Reason for Deletion <span className="text-red-500">*</span>
+        </label>
+        <textarea value={reason} onChange={e => { setReason(e.target.value); setError(''); }} rows={3}
+          placeholder="e.g. Duplicate record, data entry error…"
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none ${error ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+        <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+        <button onClick={() => { if (!reason.trim()) { setError('Please provide a reason.'); return; } onConfirm(reason.trim()); }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+          <Trash2 size={14} /> Confirm Delete
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Filter Panel ─────────────────────────────────────────────────────────────
+const FilterPanel = ({ filters, onChange, onReset, categories }) => {
+  const STATUSES = ['Available','In Use','Maintenance','Repair','Retired','Cancelled'];
+  const inp = 'w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const lbl = 'block text-xs font-medium text-gray-500 mb-1';
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-700">Filters</p>
+        <button onClick={onReset} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><X size={11} /> Reset all</button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div><label className={lbl}>Asset ID</label>
+          <input type="text" value={filters.assetId} onChange={e => onChange('assetId', e.target.value)} placeholder="Search ID" className={inp} /></div>
+        <div><label className={lbl}>Category</label>
+          <select value={filters.category} onChange={e => onChange('category', e.target.value)} className={inp}>
+            <option value="">All</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select></div>
+        <div><label className={lbl}>Status</label>
+          <select value={filters.status} onChange={e => onChange('status', e.target.value)} className={inp}>
+            <option value="">All</option>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select></div>
+        <div><label className={lbl}>Assigned To</label>
+          <input type="text" value={filters.assignedTo} onChange={e => onChange('assignedTo', e.target.value)} placeholder="Search name" className={inp} /></div>
+        <div><label className={lbl}>Location</label>
+          <input type="text" value={filters.location} onChange={e => onChange('location', e.target.value)} placeholder="Search location" className={inp} /></div>
+        <div><label className={lbl}>Date Added From</label>
+          <input type="date" value={filters.dateFrom} onChange={e => onChange('dateFrom', e.target.value)} className={inp} /></div>
+        <div><label className={lbl}>Date Added To</label>
+          <input type="date" value={filters.dateTo} onChange={e => onChange('dateTo', e.target.value)} className={inp} /></div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Constants ─────────────────────────────────────────────────────────────
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const EMPTY_FILTERS = { assetId: '', category: '', status: '', assignedTo: '', location: '', dateFrom: '', dateTo: '' };
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 const Assets = () => {
-  const { assets: rawAssets, deleteAsset, getStats } = useWMS();
+  const { assets: rawAssets, deleteAsset, cancelAsset, getStats } = useWMS();
+  const { categories } = useSettings();
   const assets = rawAssets ?? [];
-  const [isAddModalOpen, setIsAddModalOpen]     = useState(false);
-  const [editAsset, setEditAsset]               = useState(null);
-  const [selectedQRAsset, setSelectedQRAsset]   = useState(null);
-  const [isScannerOpen, setIsScannerOpen]       = useState(false);
-  const [deletingId, setDeletingId]             = useState(null);
-  const stats = getStats();
+  const stats  = getStats();
 
-  const inUseAssets       = assets.filter(a => a.status === 'In Use').length;
-  const maintenanceAssets = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
+  const [activeTab,       setActiveTab]       = useState('list');
+  const [isAddModalOpen,  setIsAddModalOpen]  = useState(false);
+  const [viewAsset,       setViewAsset]       = useState(null);
+  const [editAsset,       setEditAsset]       = useState(null);
+  const [cancelTarget,    setCancelTarget]    = useState(null);
+  const [deleteTarget,    setDeleteTarget]    = useState(null);
+  const [selectedQRAsset, setSelectedQRAsset] = useState(null);
+  const [isScannerOpen,   setIsScannerOpen]   = useState(false);
+  const [showFilters,     setShowFilters]     = useState(false);
+  const [filters,         setFilters]         = useState(EMPTY_FILTERS);
+  const [search,          setSearch]          = useState('');
+  const [page,            setPage]            = useState(1);
+  const [pageSize,        setPageSize]        = useState(10);
+  const [exporting,       setExporting]       = useState(false);
 
-  const handleDelete = async (asset) => {
-    const assetID = asset.asset_id || asset.assetID;
-    if (!window.confirm(`Delete asset ${assetID} — "${asset.description}"?\n\nThis cannot be undone.`)) return;
-    setDeletingId(asset.id);
-    const success = await deleteAsset(asset.id);
-    if (!success) alert('Failed to delete asset. Please try again.');
-    setDeletingId(null);
+  const handleFilterChange = (key, val) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
+  const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  // ── Filtering ──
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return assets.filter(a => {
+      const date     = a.created_at ? new Date(a.created_at) : null;
+      const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
+      return (
+        (!q || [a.asset_id, a.description, a.category, a.location, a.assigned_to, a.serial_number]
+          .some(f => String(f || '').toLowerCase().includes(q))) &&
+        (!filters.assetId    || String(a.asset_id    || '').toLowerCase().includes(filters.assetId.toLowerCase())) &&
+        (!filters.category   || a.category  === filters.category) &&
+        (!filters.status     || a.status    === filters.status) &&
+        (!filters.assignedTo || String(a.assigned_to || '').toLowerCase().includes(filters.assignedTo.toLowerCase())) &&
+        (!filters.location   || String(a.location    || '').toLowerCase().includes(filters.location.toLowerCase())) &&
+        (!dateFrom || (date && date >= dateFrom)) &&
+        (!dateTo   || (date && date <= dateTo))
+      );
+    });
+  }, [assets, filters, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const inUse       = assets.filter(a => a.status === 'In Use').length;
+  const maintenance = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
+  const cancelled   = assets.filter(a => a.status === 'Cancelled').length;
+
+  const handleCancelConfirm = async (reason) => {
+    const ok = await cancelAsset(cancelTarget.id, reason);
+    if (!ok) alert('Failed to cancel asset.');
+    setCancelTarget(null);
+  };
+
+  const handleDeleteConfirm = async (reason) => {
+    const ok = await deleteAsset(deleteTarget.id, reason);
+    if (!ok) alert('Failed to delete asset.');
+    setDeleteTarget(null);
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try { await exportToExcel(filtered); } catch(e) { alert('Export failed'); } finally { setExporting(false); }
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try { await exportToPDF(filtered); } catch(e) { alert('Export failed'); } finally { setExporting(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>
-            Add Asset
-          </Button>
-          <Button variant="outline" icon={Filter}>Filter</Button>
-        </div>
-        <Button variant="outline" icon={Download}>Export</Button>
+    <div className="space-y-4">
+
+      {/* Module Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button onClick={() => setActiveTab('list')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          <Scan size={15} /> Asset Tracking
+        </button>
+        <button onClick={() => setActiveTab('audit')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'audit' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+          <ShieldAlert size={15} /> Cancellation Audit Log
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card padding="p-4">
-          <p className="text-sm text-gray-500 mb-1">Total Assets</p>
-          <p className="text-2xl font-bold text-gray-800">{assets.length}</p>
-        </Card>
-        <Card padding="p-4">
-          <p className="text-sm text-gray-500 mb-1">Tagged Assets</p>
-          <p className="text-2xl font-bold text-green-600">{stats.assetsTagged}</p>
-        </Card>
-        <Card padding="p-4">
-          <p className="text-sm text-gray-500 mb-1">In Use</p>
-          <p className="text-2xl font-bold text-blue-600">{inUseAssets}</p>
-        </Card>
-        <Card padding="p-4">
-          <p className="text-sm text-gray-500 mb-1">Maintenance</p>
-          <p className="text-2xl font-bold text-orange-600">{maintenanceAssets}</p>
-        </Card>
-      </div>
+      {/* ── Audit Tab ── */}
+      {activeTab === 'audit' && <AssetAuditLog />}
 
-      {/* Table */}
-      <Card padding="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {assets.length === 0 ? (
-                <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
-                    <Scan size={48} className="mx-auto mb-3 opacity-50" />
-                    <p>No assets found</p>
-                    <p className="text-sm mt-1">Add assets and generate QR codes for tracking</p>
-                  </td>
-                </tr>
-              ) : (
-                assets.map((asset) => {
-                  const assetID    = asset.asset_id || asset.assetID;
-                  const isDeleting = deletingId === asset.id;
+      {/* ── List Tab ── */}
+      {activeTab === 'list' && <div className="space-y-4">
 
-                  return (
-                    <tr key={asset.id} className={`hover:bg-gray-50 transition-colors ${isDeleting ? 'opacity-40' : ''}`}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{assetID}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{asset.description}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.category}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.location || '—'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.assigned_to || asset.assignedTo || '—'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass(asset.status)}`}>
-                          {asset.status}
-                        </span>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedQRAsset(asset)}
-                            className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View QR"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditAsset(asset)}
-                            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(asset)}
-                            disabled={isDeleting}
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
+
+            <button onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                showFilters || activeFilterCount > 0 ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              <Filter size={15} /> Filter
+              {activeFilterCount > 0 && (
+                <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>
               )}
-            </tbody>
-          </table>
+            </button>
+
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Quick search…"
+                className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleExportExcel} disabled={exporting || filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              <FileSpreadsheet size={15} className="text-green-600" /> Excel
+            </button>
+            <button onClick={handleExportPDF} disabled={exporting || filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              <Download size={15} className="text-red-600" /> PDF
+            </button>
+          </div>
         </div>
-      </Card>
 
-      {/* Add Asset Modal */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Asset" size="lg">
-        <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => setIsAddModalOpen(false)} />
-      </Modal>
-
-      {/* Edit Asset Modal */}
-      <Modal isOpen={!!editAsset} onClose={() => setEditAsset(null)} title="Edit Asset" size="lg">
-        {editAsset && (
-          <AssetEditForm
-            asset={editAsset}
-            onClose={() => setEditAsset(null)}
-            onSuccess={() => setEditAsset(null)}
-          />
+        {showFilters && (
+          <FilterPanel filters={filters} onChange={handleFilterChange} onReset={resetFilters} categories={categories} />
         )}
-      </Modal>
 
-      {/* QR View/Print Modal */}
-      {selectedQRAsset && (
-        <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />
-      )}
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Total Assets',   value: assets.length,       color: 'text-gray-800' },
+            { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
+            { label: 'In Use',         value: inUse,               color: 'text-blue-600' },
+            { label: 'Maintenance',    value: maintenance,         color: 'text-orange-600' },
+            { label: 'Cancelled',      value: cancelled,           color: 'text-red-600' },
+          ].map(({ label, value, color }) => (
+            <Card key={label} padding="p-4">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            </Card>
+          ))}
+        </div>
 
-      {/* QR Scanner */}
-      {isScannerOpen && (
-        <QRScanner onClose={() => setIsScannerOpen(false)} />
-      )}
+        {/* Results summary */}
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>Showing <strong>{paginated.length}</strong> of <strong>{filtered.length}</strong> assets
+            {filtered.length !== assets.length && ` (filtered from ${assets.length})`}
+          </span>
+          <div className="flex items-center gap-2">
+            <span>Rows per page:</span>
+            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="border border-gray-300 rounded px-2 py-0.5 text-sm">
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Table */}
+        <Card padding="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {['Asset ID','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginated.length === 0 ? (
+                  <tr><td colSpan="9" className="px-6 py-16 text-center text-gray-400">
+                    <Scan size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No assets found</p>
+                    <p className="text-sm mt-1">{activeFilterCount > 0 || search ? 'Try adjusting your filters.' : 'Click "Add Asset" to get started.'}</p>
+                  </td></tr>
+                ) : paginated.map(asset => (
+                  <tr key={asset.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">{asset.asset_id || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.serial_number || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.location || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.assigned_to || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={asset.status} /></td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setViewAsset(asset)} title="View"
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={15} /></button>
+                        <button onClick={() => setEditAsset(asset)} title="Edit"
+                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Edit size={15} /></button>
+                        {asset.status !== 'Cancelled' && (
+                          <button onClick={() => setCancelTarget(asset)} title="Cancel Asset"
+                            className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Ban size={15} /></button>
+                        )}
+                        <button onClick={() => setDeleteTarget(asset)} title="Delete"
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+              <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(1)} disabled={page===1} className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">«</button>
+                <button onClick={() => setPage(p=>Math.max(1,p-1))} disabled={page===1} className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"><ChevronLeft size={14}/></button>
+                {Array.from({length:Math.min(5,totalPages)},(_,i)=>{const start=Math.max(1,Math.min(page-2,totalPages-4));const p=start+i;return(
+                  <button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 rounded text-sm border transition-colors ${p===page?'bg-blue-900 text-white border-blue-900':'border-gray-300 hover:bg-gray-50'}`}>{p}</button>
+                );}).filter((_,i)=>i<Math.min(5,totalPages))}
+                <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"><ChevronRight size={14}/></button>
+                <button onClick={()=>setPage(totalPages)} disabled={page===totalPages} className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">»</button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Modals */}
+        <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Asset" size="lg">
+          <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => setIsAddModalOpen(false)} />
+        </Modal>
+
+        <Modal isOpen={!!viewAsset} onClose={() => setViewAsset(null)} title="Asset Details" size="lg">
+          <AssetDetails asset={viewAsset} />
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+            <Button variant="outline" onClick={() => setViewAsset(null)}>Close</Button>
+            <Button variant="primary" onClick={() => { setEditAsset(viewAsset); setViewAsset(null); }}>Edit</Button>
+          </div>
+        </Modal>
+
+        <Modal isOpen={!!editAsset} onClose={() => setEditAsset(null)} title="Edit Asset" size="lg">
+          {editAsset && <AssetEditForm asset={editAsset} onClose={() => setEditAsset(null)} onSuccess={() => setEditAsset(null)} />}
+        </Modal>
+
+        <Modal isOpen={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Asset" size="md">
+          <CancelConfirmModal asset={cancelTarget} onConfirm={handleCancelConfirm} onCancel={() => setCancelTarget(null)} />
+        </Modal>
+
+        <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Asset" size="md">
+          <DeleteConfirmModal asset={deleteTarget} onConfirm={handleDeleteConfirm} onCancel={() => setDeleteTarget(null)} />
+        </Modal>
+
+        {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
+        {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
+      </div>}
     </div>
   );
 };

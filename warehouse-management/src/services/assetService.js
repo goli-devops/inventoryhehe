@@ -1,287 +1,191 @@
 import supabase from '../config/supabase';
 
+const FIELD_LABELS = {
+  description:    'Description',
+  category:       'Category',
+  jor_number:     'JOR Number',
+  serial_number:  'Serial Number',
+  location:       'Location',
+  assigned_to:    'Assigned To',
+  status:         'Status',
+  purchase_date:  'Purchase Date',
+  purchase_price: 'Purchase Price',
+  warranty:       'Warranty',
+};
+
 const AssetService = {
-  // Generate unique asset ID — uses full timestamp + random suffix to prevent
-  // duplicates when multiple assets are created in the same millisecond (bulk deploy)
   generateAssetID(category) {
     const categoryCode = category.substring(0, 3).toUpperCase();
     const timestamp    = Date.now().toString().slice(-8);
-    const random       = Math.floor(Math.random() * 9000 + 1000); // 4-digit random
+    const random       = Math.floor(Math.random() * 9000 + 1000);
     return `${categoryCode}-${timestamp}${random}`;
   },
 
-  // Generate QR Code data
   generateQRCode(assetID) {
     return {
       qr_code: `QR-${assetID}`,
-      qr_url: `https://wms.goli.com/assets/${assetID}`
+      qr_url:  `https://wms.goli.com/assets/${assetID}`
     };
   },
 
-  // Create new Asset
   async create(assetData) {
     try {
       const assetID = this.generateAssetID(assetData.category);
-      const qrData = this.generateQRCode(assetID);
-      
+      const qrData  = this.generateQRCode(assetID);
       const newAsset = {
-        asset_id: assetID,
-        description: assetData.description,
-        category: assetData.category,
-        serial_number: assetData.serialNumber || '',
-        location: assetData.location || '',
-        assigned_to: assetData.assignedTo || null,
+        asset_id: assetID, description: assetData.description,
+        category: assetData.category, jor_number: assetData.jorNumber || '', serial_number: assetData.serialNumber || '',
+        location: assetData.location || '', assigned_to: assetData.assignedTo || null,
         status: assetData.status || 'Available',
         purchase_date: assetData.purchaseDate || new Date().toISOString(),
-        purchase_price: assetData.purchasePrice || 0,
-        warranty: assetData.warranty || '',
-        qr_code: qrData.qr_code,
-        qr_url: qrData.qr_url,
-        is_tagged: true,
-        inventory_item_id: assetData.inventoryItemId || null,
-        created_by: assetData.createdBy,
-        history: [
-          {
-            action: 'Created',
-            date: new Date().toISOString(),
-            user: assetData.createdBy,
-            status: assetData.status || 'Available'
-          }
-        ]
+        purchase_price: assetData.purchasePrice || 0, warranty: assetData.warranty || '',
+        qr_code: qrData.qr_code, qr_url: qrData.qr_url, is_tagged: true,
+        inventory_item_id: assetData.inventoryItemId || null, created_by: assetData.createdBy,
+        history: [{ action: 'Created', date: new Date().toISOString(), user: assetData.createdBy, status: assetData.status || 'Available' }],
       };
-
-      const { data, error } = await supabase
-        .from('assets')
-        .insert([newAsset])
-        .select()
-        .single();
-
+      const { data, error } = await supabase.from('assets').insert([newAsset]).select().single();
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error creating asset:', error);
-      return null;
-    }
+    } catch (error) { console.error('Error creating asset:', error); return null; }
   },
 
-  // Get all Assets
   async getAll() {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('assets').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
-    } catch (error) {
-      console.error('Error getting all assets:', error);
-      return [];
-    }
+    } catch (error) { console.error('Error getting all assets:', error); return null; }
   },
 
-  // Get single Asset by ID
   async getById(id) {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('id', id)
-        .single();
-
+      const { data, error } = await supabase.from('assets').select('*').eq('id', id).single();
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error getting asset:', error);
-      return null;
-    }
+    } catch (error) { console.error('Error getting asset:', error); return null; }
   },
 
-  // Update Asset
   async update(id, updates) {
     try {
-      const existingAsset = await this.getById(id);
-      if (!existingAsset) return null;
-
-      const updatedHistory = [
-        ...existingAsset.history,
-        {
-          action: 'Updated',
-          date: new Date().toISOString(),
-          user: updates.updatedBy || 'System',
-          status: updates.status || existingAsset.status
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const now = new Date().toISOString();
+      const updatedBy = updates.updatedBy || 'System';
+      const newData = {
+        description:    updates.description    ?? existing.description,
+        category:       updates.category       ?? existing.category,
+        jor_number:     updates.jorNumber       ?? updates.jor_number      ?? existing.jor_number,
+        serial_number:  updates.serialNumber   ?? updates.serial_number   ?? existing.serial_number,
+        location:       updates.location       ?? existing.location,
+        assigned_to:    updates.assignedTo     ?? updates.assigned_to     ?? existing.assigned_to,
+        status:         updates.status         ?? existing.status,
+        purchase_date:  updates.purchaseDate   ?? updates.purchase_date   ?? existing.purchase_date,
+        purchase_price: updates.purchasePrice  ?? updates.purchase_price  ?? existing.purchase_price,
+        warranty:       updates.warranty       ?? existing.warranty,
+      };
+      const diffEntries = [];
+      Object.keys(FIELD_LABELS).forEach(field => {
+        const oldVal = String(existing[field] ?? '').trim();
+        const newVal = String(newData[field]  ?? '').trim();
+        if (oldVal !== newVal) {
+          diffEntries.push({ action: 'Updated', date: now, user: updatedBy, field: FIELD_LABELS[field],
+            from: oldVal || '(empty)', to: newVal || '(empty)',
+            details: `${FIELD_LABELS[field]} changed from "${oldVal || '(empty)'}" to "${newVal || '(empty)'}"` });
         }
-      ];
-
-      const { data, error } = await supabase
-        .from('assets')
-        .update({
-          ...updates,
-          history: updatedHistory
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
+      });
+      const newEntries = diffEntries.length > 0 ? diffEntries
+        : [{ action: 'Updated', date: now, user: updatedBy, details: 'No changes detected' }];
+      const updatedHistory = [...(existing.history || []), ...newEntries];
+      const { data, error } = await supabase.from('assets')
+        .update({ ...newData, history: updatedHistory }).eq('id', id).select().single();
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error updating asset:', error);
-      return null;
-    }
+    } catch (error) { console.error('Error updating asset:', error); return null; }
   },
 
-  // Assign Asset
+  async cancel(id, reason, user) {
+    try {
+      const asset = await this.getById(id);
+      if (!asset) return null;
+      const updatedHistory = [...(asset.history || []), {
+        action: 'Cancelled', date: new Date().toISOString(), user, reason,
+        field: 'Status', from: asset.status, to: 'Cancelled',
+        details: `Asset cancelled. Reason: ${reason}`,
+      }];
+      const { data, error } = await supabase.from('assets')
+        .update({ status: 'Cancelled', history: updatedHistory }).eq('id', id).select().single();
+      if (error) throw error;
+      return { asset: data, inventoryItemId: asset.inventory_item_id };
+    } catch (error) { console.error('Error cancelling asset:', error); return null; }
+  },
+
   async assignAsset(id, assignedTo, user) {
     try {
       const asset = await this.getById(id);
       if (!asset) return null;
-
-      const updatedHistory = [
-        ...asset.history,
-        {
-          action: 'Assigned',
-          date: new Date().toISOString(),
-          user: user,
-          assignedTo: assignedTo,
-          status: 'In Use'
-        }
-      ];
-
-      const { data, error } = await supabase
-        .from('assets')
-        .update({
-          assigned_to: assignedTo,
-          status: 'In Use',
-          history: updatedHistory
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
+      const updatedHistory = [...(asset.history || []), {
+        action: 'Assigned', date: new Date().toISOString(), user,
+        field: 'Assigned To', from: asset.assigned_to || '(none)', to: assignedTo,
+      }];
+      const { data, error } = await supabase.from('assets')
+        .update({ assigned_to: assignedTo, status: 'In Use', history: updatedHistory }).eq('id', id).select().single();
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error assigning asset:', error);
-      return null;
-    }
+    } catch (error) { console.error('Error assigning asset:', error); return null; }
   },
 
-  // Return Asset
   async returnAsset(id, user) {
     try {
       const asset = await this.getById(id);
       if (!asset) return null;
-
-      const updatedHistory = [
-        ...asset.history,
-        {
-          action: 'Returned',
-          date: new Date().toISOString(),
-          user: user,
-          previousAssignee: asset.assigned_to,
-          status: 'Available'
-        }
-      ];
-
-      const { data, error } = await supabase
-        .from('assets')
-        .update({
-          assigned_to: null,
-          status: 'Available',
-          history: updatedHistory
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
+      const updatedHistory = [...(asset.history || []), {
+        action: 'Returned', date: new Date().toISOString(), user,
+        field: 'Status', from: asset.status, to: 'Available',
+      }];
+      const { data, error } = await supabase.from('assets')
+        .update({ assigned_to: null, status: 'Available', history: updatedHistory }).eq('id', id).select().single();
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error returning asset:', error);
-      return null;
-    }
+    } catch (error) { console.error('Error returning asset:', error); return null; }
   },
 
-  // Update Asset Status
-  async updateStatus(id, newStatus, user) {
-    try {
-      return await this.update(id, {
-        status: newStatus,
-        updatedBy: user
-      });
-    } catch (error) {
-      console.error('Error updating asset status:', error);
-      return null;
-    }
-  },
-
-  // Delete Asset
   async delete(id) {
     try {
-      const { error } = await supabase
-        .from('assets')
-        .delete()
-        .eq('id', id);
-
+      const snapshot = await this.getById(id);
+      const { error } = await supabase.from('assets').delete().eq('id', id);
       if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error deleting asset:', error);
-      return false;
-    }
+      return { success: true, snapshot };
+    } catch (error) { console.error('Error deleting asset:', error); return { success: false, snapshot: null }; }
   },
 
-  // Get assets by status
+  async updateStatus(id, newStatus, user) {
+    try { return await this.update(id, { status: newStatus, updatedBy: user }); }
+    catch (error) { console.error('Error updating asset status:', error); return null; }
+  },
+
   async getByStatus(status) {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('status', status)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('assets').select('*').eq('status', status).order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
-    } catch (error) {
-      console.error('Error getting assets by status:', error);
-      return [];
-    }
+    } catch (error) { return []; }
   },
 
-  // Get assets by category
   async getByCategory(category) {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('category', category)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('assets').select('*').eq('category', category).order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
-    } catch (error) {
-      console.error('Error getting assets by category:', error);
-      return [];
-    }
+    } catch (error) { return []; }
   },
 
-  // Get assets assigned to user
   async getByAssignee(assignedTo) {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('assigned_to', assignedTo)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('assets').select('*').eq('assigned_to', assignedTo).order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
-    } catch (error) {
-      console.error('Error getting assets by assignee:', error);
-      return [];
-    }
-  }
+    } catch (error) { return []; }
+  },
 };
 
 export default AssetService;

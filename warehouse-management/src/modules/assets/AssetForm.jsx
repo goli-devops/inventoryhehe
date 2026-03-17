@@ -14,6 +14,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
   const [selectedItemId, setSelectedItemId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [formData, setFormData] = useState({
+    jorNumber: '',
     serialNumber: '',
     location: '',
     assignedTo: '',
@@ -61,6 +62,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
         description:   selectedItem.description,
         category:      selectedItem.category,
         purchasePrice: selectedItem.unit_price || selectedItem.unitPrice || 0,
+        jorNumber:     formData.jorNumber,
         serialNumber:  formData.serialNumber,
         location:      formData.location,
         assignedTo:    formData.assignedTo,
@@ -193,6 +195,20 @@ const AssetForm = ({ onClose, onSuccess }) => {
       {/* Asset-specific details */}
       {selectedItem && (
         <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              JOR Number
+            </label>
+            <input
+              type="number"
+              name="jorNumber"
+              value={formData.jorNumber}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., JOR-2025-001"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Serial Number

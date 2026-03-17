@@ -10,6 +10,7 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     description:   asset.description || '',
     category:      asset.category || '',
+    jorNumber:     asset.jor_number || asset.jorNumber || '',
     serialNumber:  asset.serial_number || asset.serialNumber || '',
     location:      asset.location || '',
     assignedTo:    asset.assigned_to || asset.assignedTo || '',
@@ -37,6 +38,7 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
       const result = await updateAsset(asset.id, {
         description:    formData.description,
         category:       formData.category,
+        jor_number:     formData.jorNumber,
         serial_number:  formData.serialNumber,
         location:       formData.location,
         assigned_to:    formData.assignedTo,
@@ -95,6 +97,19 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
+        </div>
+
+        {/* JOR Number */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">JOR Number</label>
+          <input
+            type="text"
+            name="jorNumber"
+            value={formData.jorNumber}
+            onChange={handleInputChange}
+            placeholder="e.g., JOR-2025-001"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
 
         {/* Serial Number */}
