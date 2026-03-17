@@ -378,7 +378,6 @@ const Assets = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
-            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
