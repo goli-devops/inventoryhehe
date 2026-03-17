@@ -113,10 +113,9 @@ const PRForm = ({ onClose, onSuccess }) => {
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              inputMode="numeric"
               name="prNumber"
               value={formData.prNumber}
-              onChange={e => setFormData(prev => ({ ...prev, prNumber: e.target.value.replace(/\D/g, '') }))}
+              onChange={e => setFormData(prev => ({ ...prev, prNumber: e.target.value }))}
               required
               placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -129,10 +128,9 @@ const PRForm = ({ onClose, onSuccess }) => {
             <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              inputMode="numeric"
               name="jorNumber"
               value={formData.jorNumber}
-              onChange={e => setFormData(prev => ({ ...prev, jorNumber: e.target.value.replace(/\D/g, '') }))}
+              onChange={e => setFormData(prev => ({ ...prev, jorNumber: e.target.value }))}
               placeholder="e.g. 20250001"
               className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -142,9 +140,14 @@ const PRForm = ({ onClose, onSuccess }) => {
 
       {/* Row 2: Department */}
       <div>
-        <label className={labelCls}>Branch/Department</label>
-        <input type="text" name="department" value={formData.department} onChange={handleInputChange}
-          placeholder="Branch/Department" className={inputCls} />
+        <label className={labelCls}>Department</label>
+        <FloatingSelect
+          name="department"
+          value={formData.department}
+          onChange={handleInputChange}
+          options={departments}
+          placeholder="Select Department"
+        />
       </div>
 
       {/* Row 3: Requester's Name */}
@@ -204,7 +207,7 @@ const PRForm = ({ onClose, onSuccess }) => {
             <div className="col-span-5">Description</div>
             <div className="col-span-2">Qty</div>
             <div className="col-span-2">Unit</div>
-            <div className="col-span-2">Est. Price/unit</div>
+            <div className="col-span-2">Est. Price</div>
             <div className="col-span-1"></div>
           </div>
           {formData.items.map((item, index) => (
@@ -228,7 +231,7 @@ const PRForm = ({ onClose, onSuccess }) => {
                 </select>
               </div>
               <div className="col-span-2">
-                <input type="number" placeholder="" value={item.estimatedPrice} min="0" step="1"
+                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="0.01"
                   onChange={e => handleItemChange(index, 'estimatedPrice', e.target.value)}
                   className={inputCls} />
               </div>
@@ -253,9 +256,9 @@ const PRForm = ({ onClose, onSuccess }) => {
 
       {/* Notes */}
       <div>
-        <label className={labelCls}>Specifications/Notes</label>
+        <label className={labelCls}>Notes</label>
         <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
-          placeholder="Additional notes or specifications..." className={inputCls} />
+          placeholder="Additional notes or requirements..." className={inputCls} />
       </div>
 
       {/* Actions */}

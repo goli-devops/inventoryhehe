@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Package, MapPin, DollarSign, User, Hash,
+  Package, MapPin, Banknote, User, Hash,
   Clock, ArrowRight, Edit3, PlusCircle, CheckCircle
 } from 'lucide-react';
 
@@ -111,9 +111,9 @@ const InventoryDetails = ({ item }) => {
 
           {/* Pricing */}
           <div className="grid grid-cols-2 gap-4">
-            <InfoRow icon={DollarSign} label="Unit Price"
+            <InfoRow icon={Banknote} label="Unit Price"
               value={`₱${parseFloat(item.unit_price || item.unitPrice || 0).toFixed(2)}`} />
-            <InfoRow icon={DollarSign} label="Total Value"
+            <InfoRow icon={Banknote} label="Total Value"
               value={`₱${totalValue.toFixed(2)}`} />
           </div>
         </div>

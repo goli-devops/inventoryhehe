@@ -201,7 +201,7 @@ export const WMSProvider = ({ children }) => {
     });
     if (newAsset) {
       const allAssets = await AssetService.getAll();
-      setAssets(allAssets);
+      if (Array.isArray(allAssets)) setAssets(allAssets);
     }
     return newAsset;
   };
@@ -247,7 +247,7 @@ export const WMSProvider = ({ children }) => {
 
     // Step 3 — refresh assets state
     const allAssets = await AssetService.getAll();
-    setAssets(allAssets);
+    if (Array.isArray(allAssets)) setAssets(allAssets);
 
     return allCreated;
   }, [currentUser.name]);
@@ -336,7 +336,7 @@ export const WMSProvider = ({ children }) => {
         pr.status === 'Submitted' || pr.status === 'For Canvass'
       ).length,
       assetsTagged: safeAssets.filter(asset =>
-        asset.is_tagged || asset.isTagged
+        (asset.is_tagged || asset.isTagged) && asset.status !== 'Cancelled'
       ).length,
       lowStockItems: safeInventory.filter(item => {
         const min = item.min_stock_level ?? item.minStockLevel ?? 0;

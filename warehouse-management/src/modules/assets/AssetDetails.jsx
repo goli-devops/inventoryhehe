@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Hash, Tag, MapPin, User, DollarSign, Shield, Clock,
-  ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle
+  Hash, Tag, MapPin, User, Shield, Clock,
+  ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle, QrCode
 } from 'lucide-react';
+import QRCodeDisplay from '../../components/common/QRCodeDisplay';
+import QRModal from '../../components/common/QRModal';
 
 const STATUS_STYLES = {
   Available:   'bg-green-100 text-green-700',
@@ -44,6 +46,7 @@ const HISTORY_PAGE_SIZE = 5;
 const AssetDetails = ({ asset }) => {
   const [tab,         setTab]         = useState('details');
   const [historyPage, setHistoryPage] = useState(1);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   if (!asset) return null;
 
@@ -85,7 +88,7 @@ const AssetDetails = ({ asset }) => {
             <InfoRow icon={MapPin}    label="Location"       value={asset.location} />
             <InfoRow icon={User}      label="Assigned To"    value={asset.assigned_to || asset.assignedTo} />
             <InfoRow icon={User}      label="Created By"     value={asset.created_by} />
-            <InfoRow icon={DollarSign}label="Purchase Price" value={asset.purchase_price != null ? `₱${parseFloat(asset.purchase_price).toFixed(2)}` : null} />
+            <InfoRow icon={Shield}    label="Purchase Price" value={asset.purchase_price != null ? `₱${parseFloat(asset.purchase_price).toFixed(2)}` : null} />
             <InfoRow icon={Clock}     label="Purchase Date"  value={asset.purchase_date ? new Date(asset.purchase_date).toLocaleDateString() : null} />
             <InfoRow icon={Shield}    label="Warranty"       value={asset.warranty} />
           </div>
@@ -94,7 +97,34 @@ const AssetDetails = ({ asset }) => {
             <p className="text-xs text-gray-500 mb-1">Description</p>
             <p className="text-sm font-medium text-gray-800">{asset.description}</p>
           </div>
+
+          {/* QR Code */}
+          {(asset.is_tagged || asset.isTagged) && (
+            <div className="pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
+                <QrCode size={13} className="text-blue-500" /> QR Code
+              </p>
+              <div className="flex items-center gap-4">
+                <button onClick={() => setShowQRModal(true)}
+                  className="hover:opacity-75 transition-opacity focus:outline-none"
+                  title="Click to view / print QR">
+                  <QRCodeDisplay asset={asset} size={80} />
+                </button>
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p className="font-mono text-gray-700">{asset.qr_code || asset.asset_id}</p>
+                  <button onClick={() => setShowQRModal(true)}
+                    className="text-blue-600 hover:underline flex items-center gap-1">
+                    <QrCode size={11} /> View &amp; Print full QR
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {showQRModal && (
+        <QRModal asset={asset} onClose={() => setShowQRModal(false)} />
       )}
 
       {/* ── History Tab ── */}

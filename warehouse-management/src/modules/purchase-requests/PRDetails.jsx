@@ -58,7 +58,7 @@ const PRDetails = ({ pr }) => {
       <div className="flex gap-1 border-b border-gray-200">
         {['details', 'history'].map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ₱{
               tab === t
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -202,7 +202,7 @@ const PRDetails = ({ pr }) => {
                                         {entry.from || '(empty)'}
                                       </span>
                                       <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
-                                      <span className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+                                      <span className={`px-2 py-0.5 rounded text-xs font-mono font-semibold ₱{
                                         entry.field === 'Status'
                                           ? STATUS_STYLES[entry.to] || 'bg-gray-100 text-gray-700'
                                           : 'bg-white border border-blue-300 text-blue-700'
@@ -243,7 +243,7 @@ const PRDetails = ({ pr }) => {
                       </button>
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                         <button key={p} onClick={() => setHistoryPage(p)}
-                          className={`w-7 h-7 text-xs rounded border transition-colors ${
+                          className={`w-7 h-7 text-xs rounded border transition-colors ₱{
                             p === historyPage ? 'bg-blue-900 text-white border-blue-900' : 'border-gray-300 hover:bg-gray-50'
                           }`}>
                           {p}

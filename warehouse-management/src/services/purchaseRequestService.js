@@ -49,7 +49,7 @@ const PurchaseRequestService = {
           {
             action: 'Created',
             date: new Date().toISOString(),
-            user: prData.requestedBy || 'System',
+            user: prData.createdBy || prData.requestedBy || 'System',
             details: `Purchase Request ${prNumber} created with status Submitted`,
           }
         ],

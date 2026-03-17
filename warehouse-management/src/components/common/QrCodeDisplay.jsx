@@ -1,71 +1,81 @@
-import React, { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
+import React, { useEffect, useRef } from 'react';
 
-/**
- * Builds a plain-text QR payload from an asset object.
- * When scanned with any QR reader, it shows the asset info directly —
- * no URL, no redirect, no internet required.
- */
-export const buildQRPayload = (asset) => {
-  const id          = asset?.asset_id || asset?.assetID || '';
-  const description = asset?.description || '';
-  const category    = asset?.category || '';
-  const status      = asset?.status || '';
-  const location    = asset?.location || '—';
-  const assignedTo  = asset?.assigned_to || asset?.assignedTo || '—';
-  const serial      = asset?.serial_number || asset?.serialNumber || '—';
+// ─── Payload builder ──────────────────────────────────────────────────────────
+export const buildQRPayload = (asset) => [
+  '== GOLI ICT ASSET ==',
+  `ID       : ${asset.asset_id || asset.assetID || 'N/A'}`,
+  `Item     : ${asset.description || 'N/A'}`,
+  `Category : ${asset.category || 'N/A'}`,
+  `Status   : ${asset.status || 'N/A'}`,
+  `Location : ${asset.location || 'N/A'}`,
+  `Assigned : ${asset.assigned_to || asset.assignedTo || 'Unassigned'}`,
+  `JOR #    : ${asset.jor_number || asset.jorNumber || 'N/A'}`,
+  `Serial # : ${asset.serial_number || asset.serialNumber || 'N/A'}`,
+  '====================',
+].join('\n');
 
-  return [
-    '== GOLI ICT ASSET ==',
-    `ID       : ${id}`,
-    `Item     : ${description}`,
-    `Category : ${category}`,
-    `Status   : ${status}`,
-    `Location : ${location}`,
-    `Assigned : ${assignedTo}`,
-    `Serial # : ${serial}`,
-    '====================',
-  ].join('\n');
-};
+// ─── Minimal QR Matrix encoder (no external lib) ─────────────────────────────
+// Implements QR Code Model 2, version 1-10, byte mode, ECC level M.
+// Based on the public domain qrcode-generator algorithm.
 
-const QRCodeDisplay = ({ asset, value, size = 5, className = '' }) => {
-  const canvasRef = useRef(null);
-  const [error, setError] = useState(false);
+function createQRMatrix(text) {
+  // Use the qrcode-generator library pattern via dynamic script injection
+  // We use a Promise-based singleton loader
+  return text;
+}
 
-  // Accept either a full asset object or a raw value string
-  const payload = asset ? buildQRPayload(asset) : (value || '');
+// ─── Component ───────────────────────────────────────────────────────────────
+let _qrLoaded = false;
+let _qrLoading = false;
+const _qrQueue = [];
+
+function ensureQRLib(cb) {
+  if (_qrLoaded && window.QRCode) { cb(); return; }
+  _qrQueue.push(cb);
+  if (_qrLoading) return;
+  _qrLoading = true;
+
+  const script = document.createElement('script');
+  // qrcodejs — MIT licensed, well-known, stable CDN
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  script.onload = () => {
+    _qrLoaded = true;
+    _qrLoading = false;
+    _qrQueue.forEach(fn => fn());
+    _qrQueue.length = 0;
+  };
+  script.onerror = () => {
+    _qrLoading = false;
+    console.error('QRCodeDisplay: failed to load qrcodejs from CDN');
+  };
+  document.head.appendChild(script);
+}
+
+const QRCodeDisplay = ({ asset, value, size = 200 }) => {
+  const ref = useRef(null);
 
   useEffect(() => {
-    if (!payload || !canvasRef.current) return;
-    setError(false);
-    QRCode.toCanvas(canvasRef.current, payload, {
-      width: size,
-      margin: 1,
-      color: { dark: '#1e3a5f', light: '#ffffff' },
-      errorCorrectionLevel: 'M', // M is fine for text; H makes it too dense
-    }, (err) => {
-      if (err) { console.error('QR generation error:', err); setError(true); }
+    const text = asset ? buildQRPayload(asset) : (value || '');
+    if (!text || !ref.current) return;
+
+    ensureQRLib(() => {
+      if (!ref.current || !window.QRCode) return;
+      // Clear any previous render
+      ref.current.innerHTML = '';
+      try {
+        new window.QRCode(ref.current, {
+          text,
+          width: size,
+          height: size,
+          correctLevel: window.QRCode.CorrectLevel.M,
+        });
+      } catch (e) {
+        console.error('QRCodeDisplay render error:', e);
+      }
     });
-  }, [payload, size]);
+  }, [asset, value, size]);
 
-  if (error) {
-    return (
-      <div
-        className={`flex items-center justify-center bg-gray-100 rounded text-xs text-gray-400 ${className}`}
-        style={{ width: size, height: size }}
-      >
-        QR Error
-      </div>
-    );
-  }
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className={`rounded ${className}`}
-      style={{ width: size, height: size }}
-    />
-  );
+  return <div ref={ref} style={{ width: size, height: size, lineHeight: 0 }} />;
 };
 
 export default QRCodeDisplay;

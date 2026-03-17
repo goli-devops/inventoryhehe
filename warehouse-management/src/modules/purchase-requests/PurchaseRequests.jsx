@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
   Plus, Filter, Download, FileText, Eye, Edit, Trash2,
-  ChevronLeft, ChevronRight, X, FileSpreadsheet, Search, ShieldAlert
+  ChevronLeft, ChevronRight, X, FileSpreadsheet, Search, ShieldAlert, Square, CheckSquare
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -98,7 +98,7 @@ const DeleteConfirmModal = ({ pr, onConfirm, onCancel }) => {
         <div>
           <p className="text-sm font-semibold text-red-700">You are about to delete a Purchase Request</p>
           <p className="text-sm text-red-600 mt-0.5">
-            This action cannot be undone. The record will be permanently removed but logged in the PR Deletion Audit Log.
+            This action cannot be undone. The record will be permanently removed but logged in the Deletion Audit Trail.
           </p>
         </div>
       </div>
@@ -256,7 +256,7 @@ const EMPTY_FILTERS = {
 };
 
 const PurchaseRequests = () => {
-  const { purchaseRequests, deletePR } = useWMS();
+  const { purchaseRequests, deletePR, loading } = useWMS();
   const { departments } = useSettings();
   const prs = purchaseRequests ?? [];
 
@@ -272,12 +272,26 @@ const PurchaseRequests = () => {
   const [page,              setPage]              = useState(1);
   const [pageSize,          setPageSize]          = useState(10);
   const [exporting,         setExporting]         = useState(false);
+  const [selectedIds,       setSelectedIds]       = useState(new Set());
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setPage(1);
   };
   const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
+
+  // ── Bulk selection helpers ──
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(paginated.map(pr => pr.id)));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const selectedPRs = prs.filter(pr => selectedIds.has(pr.id));
 
   // ── Filtering ──
   const filtered = useMemo(() => {
@@ -354,7 +368,7 @@ const PurchaseRequests = () => {
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}>
           <ShieldAlert size={15} />
-          PR Deletion Audit Log
+          Deletion Audit Log
         </button>
       </div>
 
@@ -422,6 +436,23 @@ const PurchaseRequests = () => {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-900 text-white rounded-xl">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-2">
+            <button onClick={async () => {
+              if (!window.confirm(`Delete ${selectedIds.size} selected PR(s)?`)) return;
+              for (const pr of selectedPRs) await deletePR(pr.id);
+              clearSelection();
+            }} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg text-xs font-medium transition-colors">
+              <Trash2 size={13} /> Delete Selected
+            </button>
+          </div>
+          <button onClick={clearSelection} className="ml-auto p-1 hover:bg-white/20 rounded-lg transition-colors"><X size={14} /></button>
+        </div>
+      )}
+
       {/* Filter panel */}
       {showFilters && (
         <FilterPanel
@@ -456,7 +487,14 @@ const PurchaseRequests = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['PR Number','JOR Number','Date','Department','Requested By','Supplier','Company','Contact','Terms','Items','Status','Actions'].map(h => (
+                <th className="px-4 py-3 w-10">
+                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-700">
+                    {selectedIds.size > 0 && selectedIds.size === paginated.length
+                      ? <CheckSquare size={16} className="text-blue-600" />
+                      : <Square size={16} />}
+                  </button>
+                </th>
+              {['PR Number','JOR Number','Date','Department','Requested By','Supplier','Company','Contact','Terms','Items','Status','Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -466,7 +504,7 @@ const PurchaseRequests = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan="12" className="px-6 py-16 text-center text-gray-400">
+                  <td colSpan="13" className="px-6 py-16 text-center text-gray-400">
                     <FileText size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No purchase requests found</p>
                     <p className="text-sm mt-1">
@@ -477,7 +515,12 @@ const PurchaseRequests = () => {
                   </td>
                 </tr>
               ) : paginated.map(pr => (
-                <tr key={pr.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={pr.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(pr.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-4 py-3">
+                    <button onClick={() => toggleSelect(pr.id)} className="text-gray-400 hover:text-blue-600">
+                      {selectedIds.has(pr.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
                     {pr.pr_number || pr.prNumber || '—'}
                   </td>

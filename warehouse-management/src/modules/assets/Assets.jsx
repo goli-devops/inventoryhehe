@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Filter, Scan, Eye, Edit, Trash2, Ban,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
-  Search, ShieldAlert
+  Search, ShieldAlert, Square, CheckSquare
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -167,6 +167,50 @@ const DeleteConfirmModal = ({ asset, onConfirm, onCancel }) => {
   );
 };
 
+
+// ─── Bulk Cancel Modal ────────────────────────────────────────────────────────
+const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
+  const [reason, setReason] = useState('');
+  const [error,  setError]  = useState('');
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+        <Ban size={20} className="text-orange-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-red-700">Cancelling {assets.length} asset{assets.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-red-600 mt-0.5">
+            All selected assets will be marked as Cancelled. If linked to inventory, each will return 1 unit to stock.
+          </p>
+        </div>
+      </div>
+      <div className="max-h-40 overflow-y-auto space-y-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+        {assets.map(a => (
+          <div key={a.id} className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-gray-700 w-28 flex-shrink-0">{a.asset_id}</span>
+            <span className="text-gray-500 truncate">{a.description}</span>
+          </div>
+        ))}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Reason for Cancellation <span className="text-red-500">*</span>
+        </label>
+        <textarea value={reason} onChange={e => { setReason(e.target.value); setError(''); }} rows={3}
+          placeholder="e.g. Devices damaged, lost, or decommissioned…"
+          className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none ${error ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+        <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Keep Assets</button>
+        <button onClick={() => { if (!reason.trim()) { setError('Please provide a reason.'); return; } onConfirm(reason.trim()); }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors">
+          <Ban size={14} /> Cancel Assets
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
 const FilterPanel = ({ filters, onChange, onReset, categories }) => {
   const STATUSES = ['Available','In Use','Maintenance','Repair','Retired','Cancelled'];
@@ -208,7 +252,7 @@ const EMPTY_FILTERS = { assetId: '', category: '', status: '', assignedTo: '', l
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 const Assets = () => {
-  const { assets: rawAssets, deleteAsset, cancelAsset, getStats } = useWMS();
+  const { assets: rawAssets, deleteAsset, cancelAsset, getStats, loading } = useWMS();
   const { categories } = useSettings();
   const assets = rawAssets ?? [];
   const stats  = getStats();
@@ -219,6 +263,7 @@ const Assets = () => {
   const [editAsset,       setEditAsset]       = useState(null);
   const [cancelTarget,    setCancelTarget]    = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+  const [bulkCancelQueue, setBulkCancelQueue] = useState(null); // array of assets to cancel in bulk
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
   const [isScannerOpen,   setIsScannerOpen]   = useState(false);
   const [showFilters,     setShowFilters]     = useState(false);
@@ -227,9 +272,21 @@ const Assets = () => {
   const [page,            setPage]            = useState(1);
   const [pageSize,        setPageSize]        = useState(10);
   const [exporting,       setExporting]       = useState(false);
+  const [selectedIds,     setSelectedIds]     = useState(new Set());
 
   const handleFilterChange = (key, val) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
   const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
+
+  // ── Bulk selection helpers ──
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(paginated.map(a => a.id)));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const selectedAssets = assets.filter(a => selectedIds.has(a.id));
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   // ── Filtering ──
@@ -264,6 +321,18 @@ const Assets = () => {
     const ok = await cancelAsset(cancelTarget.id, reason);
     if (!ok) alert('Failed to cancel asset.');
     setCancelTarget(null);
+  };
+
+  const handleBulkCancelConfirm = async (reason) => {
+    if (!bulkCancelQueue?.length) return;
+    let failed = 0;
+    for (const asset of bulkCancelQueue) {
+      const ok = await cancelAsset(asset.id, reason);
+      if (!ok) failed++;
+    }
+    if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
+    setBulkCancelQueue(null);
+    clearSelection();
   };
 
   const handleDeleteConfirm = async (reason) => {
@@ -309,6 +378,7 @@ const Assets = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
+            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -358,6 +428,25 @@ const Assets = () => {
           ))}
         </div>
 
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-900 text-white rounded-xl">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <div className="flex items-center gap-2 ml-2">
+              <button onClick={() => {
+                const toCancel = selectedAssets.filter(a => a.status !== 'Cancelled');
+                if (toCancel.length === 0) { alert('All selected assets are already cancelled.'); return; }
+                setBulkCancelQueue(toCancel);
+              }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 rounded-lg text-xs font-medium transition-colors">
+                <Ban size={13} /> Cancel Selected ({selectedAssets.filter(a => a.status !== 'Cancelled').length})
+              </button>
+
+            </div>
+            <button onClick={clearSelection} className="ml-auto p-1 hover:bg-white/20 rounded-lg transition-colors"><X size={14} /></button>
+          </div>
+        )}
+
         {/* Results summary */}
         <div className="flex items-center justify-between text-sm text-gray-500">
           <span>Showing <strong>{paginated.length}</strong> of <strong>{filtered.length}</strong> assets
@@ -378,20 +467,42 @@ const Assets = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-700">
+                      {selectedIds.size > 0 && selectedIds.size === paginated.length
+                        ? <CheckSquare size={16} className="text-blue-600" />
+                        : <Square size={16} />}
+                    </button>
+                  </th>
                   {['Asset ID','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan="9" className="px-6 py-16 text-center text-gray-400">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="relative w-10 h-10">
+                        <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
+                        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin" />
+                      </div>
+                      <p className="text-sm">Loading assets…</p>
+                    </div>
+                  </td></tr>
+                ) : paginated.length === 0 ? (
                   <tr><td colSpan="9" className="px-6 py-16 text-center text-gray-400">
                     <Scan size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No assets found</p>
                     <p className="text-sm mt-1">{activeFilterCount > 0 || search ? 'Try adjusting your filters.' : 'Click "Add Asset" to get started.'}</p>
                   </td></tr>
                 ) : paginated.map(asset => (
-                  <tr key={asset.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={asset.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(asset.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <button onClick={() => toggleSelect(asset.id)} className="text-gray-400 hover:text-blue-600">
+                        {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">{asset.asset_id || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
@@ -399,18 +510,20 @@ const Assets = () => {
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.location || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.assigned_to || '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={asset.status} /></td>
+
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <button onClick={() => setViewAsset(asset)} title="View"
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={15} /></button>
-                        <button onClick={() => setEditAsset(asset)} title="Edit"
-                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Edit size={15} /></button>
+                        {asset.status !== 'Cancelled' && (
+                          <button onClick={() => setEditAsset(asset)} title="Edit"
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Edit size={15} /></button>
+                        )}
                         {asset.status !== 'Cancelled' && (
                           <button onClick={() => setCancelTarget(asset)} title="Cancel Asset"
                             className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Ban size={15} /></button>
                         )}
-                        <button onClick={() => setDeleteTarget(asset)} title="Delete"
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
+
                       </div>
                     </td>
                   </tr>
@@ -445,12 +558,25 @@ const Assets = () => {
           <AssetDetails asset={viewAsset} />
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
             <Button variant="outline" onClick={() => setViewAsset(null)}>Close</Button>
+            {viewAsset?.status !== 'Cancelled' && (
             <Button variant="primary" onClick={() => { setEditAsset(viewAsset); setViewAsset(null); }}>Edit</Button>
+          )}
           </div>
         </Modal>
 
         <Modal isOpen={!!editAsset} onClose={() => setEditAsset(null)} title="Edit Asset" size="lg">
           {editAsset && <AssetEditForm asset={editAsset} onClose={() => setEditAsset(null)} onSuccess={() => setEditAsset(null)} />}
+        </Modal>
+
+        {/* Bulk cancel modal */}
+        <Modal isOpen={!!bulkCancelQueue} onClose={() => setBulkCancelQueue(null)} title={`Cancel ${bulkCancelQueue?.length || 0} Asset(s)`} size="md">
+          {bulkCancelQueue && (
+            <BulkCancelModal
+              assets={bulkCancelQueue}
+              onConfirm={handleBulkCancelConfirm}
+              onCancel={() => setBulkCancelQueue(null)}
+            />
+          )}
         </Modal>
 
         <Modal isOpen={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Asset" size="md">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, Search, ChevronLeft, ChevronRight, X, Eye, RefreshCw } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
-import InventoryAuditLogService from '../../services/Inventoryauditlogservice';
+import InventoryAuditLogService from '../../services/inventoryAuditLogService';
 
 const PAGE_SIZE = 15;
 
@@ -172,7 +172,7 @@ const InventoryAuditLog = () => {
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap text-center">{snap.quantity ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {snap.status ? (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ₱{
                           snap.status === 'In Stock'     ? 'bg-green-100 text-green-700'  :
                           snap.status === 'Low Stock'    ? 'bg-orange-100 text-orange-700':
                           snap.status === 'Out of Stock' ? 'bg-red-100 text-red-700'      :

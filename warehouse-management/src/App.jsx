@@ -14,11 +14,31 @@ const AppContent = () => {
   // Waiting for Supabase to resolve the initial session
   if (loading) {
     return (
-      <div className="min-h-screen bg-blue-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex flex-col items-center justify-center gap-6">
+        {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <Loader size={32} className="text-blue-300 animate-spin" />
-          <p className="text-blue-300 text-sm">Loading…</p>
+          <img src="/goli_logo.jpg" alt="GOLI ICT"
+            className="h-16 w-auto object-contain drop-shadow-lg"
+            onError={e => { e.target.style.display = 'none'; }} />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white tracking-wide">GOLI – ICT</h1>
+            <p className="text-blue-300 text-sm">Warehouse Management System</p>
+          </div>
         </div>
+
+        {/* Spinner */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-700" />
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-white animate-spin" />
+          </div>
+          <p className="text-blue-300 text-sm animate-pulse">Loading, please wait…</p>
+        </div>
+
+        {/* Bottom bar */}
+        <p className="absolute bottom-6 text-blue-400 text-xs">
+          © {new Date().getFullYear()} Global Officium Limited Inc.
+        </p>
       </div>
     );
   }

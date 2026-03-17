@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, Search, ChevronLeft, ChevronRight, X, Eye, RefreshCw } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
-import AuditLogService from '../../services/AuditLogService';
+import AuditLogService from '../../services/auditLogService';
 
 const PAGE_SIZE = 15;
 
@@ -255,34 +255,36 @@ const PRAuditLog = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-            <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => load(1)} disabled={page === 1}
-                className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">«</button>
-              <button onClick={() => load(page - 1)} disabled={page === 1}
-                className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">
-                <ChevronLeft size={14} /></button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-                const p = start + i;
-                return (
-                  <button key={p} onClick={() => load(p)}
-                    className={`w-8 h-8 rounded text-sm border transition-colors ${
-                      p === page ? 'bg-blue-900 text-white border-blue-900' : 'border-gray-300 hover:bg-gray-50'
-                    }`}>{p}</button>
-                );
-              })}
-              <button onClick={() => load(page + 1)} disabled={page === totalPages}
-                className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">
-                <ChevronRight size={14} /></button>
-              <button onClick={() => load(totalPages)} disabled={page === totalPages}
-                className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">»</button>
-            </div>
+        {/* Pagination — always shown */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+          <span className="text-sm text-gray-500">
+            {totalCount === 0
+              ? 'No records'
+              : `Showing ${Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–${Math.min(page * PAGE_SIZE, totalCount)} of ${totalCount} record${totalCount !== 1 ? 's' : ''}`}
+          </span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => load(1)} disabled={page === 1 || totalPages === 0}
+              className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">«</button>
+            <button onClick={() => load(page - 1)} disabled={page === 1 || totalPages === 0}
+              className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">
+              <ChevronLeft size={14} /></button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              const p = start + i;
+              return (
+                <button key={p} onClick={() => load(p)}
+                  className={`w-8 h-8 rounded text-sm border transition-colors ${
+                    p === page ? 'bg-blue-900 text-white border-blue-900' : 'border-gray-300 hover:bg-gray-50'
+                  }`}>{p}</button>
+              );
+            })}
+            <button onClick={() => load(page + 1)} disabled={page === totalPages || totalPages === 0}
+              className="p-1.5 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">
+              <ChevronRight size={14} /></button>
+            <button onClick={() => load(totalPages)} disabled={page === totalPages || totalPages === 0}
+              className="px-2 py-1 rounded text-sm border border-gray-300 disabled:opacity-40 hover:bg-gray-50">»</button>
           </div>
-        )}
+        </div>
       </Card>
 
       {/* Snapshot Modal */}

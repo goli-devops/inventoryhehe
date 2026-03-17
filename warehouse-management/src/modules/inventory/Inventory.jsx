@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Filter, Package, Eye, Edit, Trash2,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download, Search,
-  AlertTriangle, AlertCircle, ShieldAlert, FileText
+  AlertTriangle, AlertCircle, ShieldAlert, FileText, Square, CheckSquare
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -234,7 +234,7 @@ const EMPTY_FILTERS = { itemCode: '', category: '', supplier: '', status: '', da
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Inventory = () => {
-  const { inventory: rawInventory, getStats, deleteInventoryItem } = useWMS();
+  const { inventory: rawInventory, getStats, deleteInventoryItem, loading } = useWMS();
   const { categories } = useSettings();
   const inventory = rawInventory ?? [];
   const stats = getStats();
@@ -251,9 +251,21 @@ const Inventory = () => {
   const [page,              setPage]              = useState(1);
   const [pageSize,          setPageSize]          = useState(10);
   const [exporting,         setExporting]         = useState(false);
+  const [selectedIds,       setSelectedIds]       = useState(new Set());
 
   const handleFilterChange = (key, value) => { setFilters(p => ({ ...p, [key]: value })); setPage(1); };
   const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
+
+  // ── Bulk selection helpers ──
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(paginated.map(i => i.id)));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const selectedItems = inventory.filter(i => selectedIds.has(i.id));
 
   // ── Filtering ──
   const filtered = useMemo(() => {
@@ -405,10 +417,27 @@ const Inventory = () => {
             {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Value'}
           </p>
           <p className="text-2xl font-bold text-blue-700">
-            ₱{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+            ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
           </p>
         </Card>
       </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-900 text-white rounded-xl">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-2">
+            <button onClick={async () => {
+              if (!window.confirm(`Delete ${selectedIds.size} selected item(s)?`)) return;
+              for (const item of selectedItems) await deleteInventoryItem(item.id, 'Bulk deletion');
+              clearSelection();
+            }} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg text-xs font-medium transition-colors">
+              <Trash2 size={13} /> Delete Selected
+            </button>
+          </div>
+          <button onClick={clearSelection} className="ml-auto p-1 hover:bg-white/20 rounded-lg transition-colors"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Results summary */}
       <div className="flex items-center justify-between text-sm text-gray-500">
@@ -431,7 +460,14 @@ const Inventory = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Item Code','Description','Category','Qty','Unit','Unit Price','Location','Supplier','Status','Actions'].map(h => (
+                <th className="px-4 py-3 w-10">
+                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-700">
+                    {selectedIds.size > 0 && selectedIds.size === paginated.length
+                      ? <CheckSquare size={16} className="text-blue-600" />
+                      : <Square size={16} />}
+                  </button>
+                </th>
+              {['Item Code','Description','Category','Qty','Unit','Unit Price','Location','Supplier','Status','Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -439,9 +475,19 @@ const Inventory = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan="11" className="px-6 py-16 text-center text-gray-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative w-10 h-10">
+                      <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
+                      <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin" />
+                    </div>
+                    <p className="text-sm">Loading inventory…</p>
+                  </div>
+                </td></tr>
+              ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="px-6 py-16 text-center text-gray-400">
+                  <td colSpan="11" className="px-6 py-16 text-center text-gray-400">
                     <Package size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No inventory items found</p>
                     <p className="text-sm mt-1">
@@ -455,7 +501,12 @@ const Inventory = () => {
                   : item.quantity <= minStock ? 'text-orange-600 font-semibold'
                   : 'text-gray-800';
                 return (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(item.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <button onClick={() => toggleSelect(item.id)} className="text-gray-400 hover:text-blue-600">
+                        {selectedIds.has(item.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
                       {item.item_code || item.itemCode || '—'}
                     </td>
