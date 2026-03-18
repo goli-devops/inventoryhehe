@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   Package, MapPin, Banknote, User, Hash,
-  Clock, ArrowRight, Edit3, PlusCircle, CheckCircle
+  Clock, ArrowRight, Edit3, PlusCircle, CheckCircle, QrCode, Tag, Printer
 } from 'lucide-react';
+import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 
 const STATUS_STYLES = {
   'In Stock':     'bg-green-100 text-green-700',
@@ -38,6 +39,73 @@ const entryMeta = (entry) => {
 
 const HISTORY_PAGE_SIZE = 5;
 
+// ── Print QR codes via a hidden print window ──────────────────────────────────
+const printInventoryQRCodes = (item, assetTags) => {
+  const buildPayload = (tag, index) => [
+    '== GOLI ICT INVENTORY ==',
+    `Item Code : ${item.item_code || ''}`,
+    `Asset Tag : ${tag}`,
+    `Unit #    : ${index + 1}`,
+    `Item      : ${item.description || ''}`,
+    `Category  : ${item.category || ''}`,
+    `Location  : ${item.location || ''}`,
+    '========================',
+  ].join('\n');
+
+  // Collect QR canvas elements and build a print page
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) { alert('Please allow pop-ups to print QR codes.'); return; }
+
+  // We'll render QRs client-side using qrcodejs script
+  const qrScript = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+
+  const cards = assetTags.map((tag, i) => `
+    <div class="qr-card">
+      <div id="qr_${i}" class="qr-box"></div>
+      <div class="qr-info">
+        <p class="item-name">${item.description || ''}</p>
+        <p class="tag-num">Asset Tag: <strong>${tag}</strong></p>
+        <p class="unit-num">Unit ${i + 1} of ${assetTags.length}</p>
+        <p class="item-code">${item.item_code || ''} - ${item.category || ''}</p>
+      </div>
+    </div>`).join('');
+
+  const generateScript = assetTags.map((tag, i) =>
+    `new QRCode(document.getElementById('qr_${i}'), { text: ${JSON.stringify(buildPayload(tag, i))}, width: 96, height: 96, correctLevel: QRCode.CorrectLevel.M });`
+  ).join('\n');
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html><head><title>QR Codes - ${item.description}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; padding: 16px; background: #fff; }
+  h2 { font-size: 14px; color: #333; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .qr-card { display: flex; align-items: center; gap: 10px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; width: 260px; }
+  .qr-box canvas, .qr-box img { display: block; }
+  .qr-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 11px; font-weight: 700; color: #111; margin-bottom: 3px; word-break: break-word; }
+  .tag-num { font-size: 11px; color: #333; }
+  .unit-num { font-size: 10px; color: #666; margin-top: 2px; }
+  .item-code { font-size: 9px; color: #999; margin-top: 3px; }
+  @media print { body { padding: 8px; } }
+</style></head>
+<body>
+  <h2>QR Codes: ${item.description} (${assetTags.length} unit${assetTags.length !== 1 ? 's' : ''})</h2>
+  <div class="grid">${cards}</div>
+  <script src="${qrScript}"></script>
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        ${generateScript}
+        setTimeout(function() { window.print(); }, 600);
+      }, 300);
+    });
+  </script>
+</body></html>`);
+  printWindow.document.close();
+};
+
 const InventoryDetails = ({ item }) => {
   const [tab,         setTab]         = useState('details');
   const [historyPage, setHistoryPage] = useState(1);
@@ -46,6 +114,12 @@ const InventoryDetails = ({ item }) => {
 
   const totalValue = (item.quantity ?? 0) * (parseFloat(item.unit_price || item.unitPrice) || 0);
   const history    = [...(item.history || [])].reverse();
+  // Normalize asset_tags — Supabase JSONB may return null, string, or object for old records
+  const assetTags  = Array.isArray(item.asset_tags)
+    ? item.asset_tags
+    : (item.asset_tags && typeof item.asset_tags === 'object')
+      ? Object.values(item.asset_tags)
+      : [];
   const totalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
   const pagedHistory = history.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
 
@@ -72,7 +146,7 @@ const InventoryDetails = ({ item }) => {
       {/* ── Details Tab ── */}
       {tab === 'details' && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <StatusBadge status={item.status} />
             <span className="text-xs text-gray-400">
               {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
@@ -116,6 +190,54 @@ const InventoryDetails = ({ item }) => {
             <InfoRow icon={Banknote} label="Total Value"
               value={`₱${totalValue.toFixed(2)}`} />
           </div>
+
+          {/* Asset Tags Panel */}
+          {assetTags.length > 0 && (
+            <div className="border border-blue-100 rounded-xl p-4 bg-blue-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                  <Tag size={15} /> Asset Tags — {assetTags.length} unit{assetTags.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  onClick={() => printInventoryQRCodes(item, assetTags)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
+                >
+                  <Printer size={12} /> Print All QR Codes
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                {assetTags.map((tag, i) => {
+                  const payload = [
+                    '== GOLI ICT INVENTORY ==',
+                    `Item Code : ${item.item_code || ''}`,
+                    `Asset Tag : ${tag}`,
+                    `Unit #    : ${i + 1}`,
+                    `Item      : ${item.description || ''}`,
+                    `Category  : ${item.category || ''}`,
+                    `Location  : ${item.location || ''}`,
+                    '========================',
+                  ].join('\n');
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-300 transition-colors">
+                      <div className="flex-shrink-0">
+                        <QRCodeDisplay value={payload} size={72} />
+                      </div>
+                      <div className="text-xs min-w-0">
+                        <p className="font-mono font-bold text-gray-800 truncate">{tag}</p>
+                        <p className="text-gray-500 mt-0.5">Unit {i + 1} of {assetTags.length}</p>
+                        <button
+                          onClick={() => printInventoryQRCodes(item, [tag])}
+                          className="mt-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          <Printer size={10} /> Print this QR
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -180,15 +302,16 @@ const InventoryDetails = ({ item }) => {
                   })}
                 </div>
               </div>
+              
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
                   <span className="text-xs text-gray-500">
-                    {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length} entries
+                    {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}&#8211;{Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length} entries
                   </span>
                   <div className="flex items-center gap-1">
                     <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
-                      className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">← Prev</button>
+                      className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">&laquo; Prev</button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button key={p} onClick={() => setHistoryPage(p)}
                         className={`w-7 h-7 text-xs rounded border transition-colors ${p === historyPage ? 'bg-blue-900 text-white border-blue-900' : 'border-gray-300 hover:bg-gray-50'}`}>
@@ -196,7 +319,7 @@ const InventoryDetails = ({ item }) => {
                       </button>
                     ))}
                     <button onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))} disabled={historyPage === totalPages}
-                      className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Next →</button>
+                      className="px-2.5 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Next &raquo;</button>
                   </div>
                 </div>
               )}

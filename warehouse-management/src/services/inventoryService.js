@@ -15,12 +15,6 @@ const InventoryService = {
         ? itemData.itemCode.trim()
         : this.generateItemCode(itemData.category);
       const quantity = itemData.quantity || 0;
-      const minStockLevel = itemData.minStockLevel || 0;
-      
-      // Calculate status based on quantity and min stock level
-      let status = 'In Stock';
-      if (quantity === 0) status = 'Out of Stock';
-      else if (quantity <= minStockLevel) status = 'Low Stock';
       
       const newItem = {
         item_code: itemCode,
@@ -29,11 +23,16 @@ const InventoryService = {
         quantity: quantity,
         unit: itemData.unit,
         location: itemData.location || '',
-        min_stock_level: minStockLevel,
+        min_stock_level: itemData.minStockLevel || 0,
         max_stock_level: itemData.maxStockLevel || 0,
         unit_price: itemData.unitPrice || 0,
         supplier: itemData.supplier || '',
-        status: status,
+        status: quantity === 0
+          ? 'Out of Stock'
+          : quantity <= (itemData.minStockLevel || 0)
+            ? 'Low Stock'
+            : 'In Stock',
+        asset_tags: itemData.assetTags || [],
         created_by: itemData.createdBy,
         history: [
           {
@@ -116,6 +115,7 @@ const InventoryService = {
         min_stock_level: newMinStock,
         max_stock_level: updates.maxStockLevel  ?? updates.max_stock_level  ?? existingItem.max_stock_level,
         unit_price:      updates.unitPrice      ?? updates.unit_price       ?? existingItem.unit_price,
+        asset_tags:      updates.assetTags      ?? updates.asset_tags       ?? existingItem.asset_tags ?? [],
         status:          updates.status         ?? derivedStatus,
       };
 

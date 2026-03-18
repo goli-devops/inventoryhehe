@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Filter, Scan, Eye, Edit, Trash2, Ban,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
-  Search, ShieldAlert, Square, CheckSquare
+  Search, ShieldAlert, Square, CheckSquare,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -174,11 +175,11 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
   const [error,  setError]  = useState('');
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+      <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-xl">
         <Ban size={20} className="text-orange-500 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-semibold text-red-700">Cancelling {assets.length} asset{assets.length !== 1 ? 's' : ''}</p>
-          <p className="text-sm text-red-600 mt-0.5">
+          <p className="text-sm font-semibold text-orange-700">Cancelling {assets.length} asset{assets.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-orange-600 mt-0.5">
             All selected assets will be marked as Cancelled. If linked to inventory, each will return 1 unit to stock.
           </p>
         </div>
@@ -204,7 +205,7 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
         <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Keep Assets</button>
         <button onClick={() => { if (!reason.trim()) { setError('Please provide a reason.'); return; } onConfirm(reason.trim()); }}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors">
-          <Ban size={14} /> Cancel Assets
+          <Ban size={14} /> Confirm Cancel All
         </button>
       </div>
     </div>
@@ -273,6 +274,7 @@ const Assets = () => {
   const [pageSize,        setPageSize]        = useState(10);
   const [exporting,       setExporting]       = useState(false);
   const [selectedIds,     setSelectedIds]     = useState(new Set());
+  const [expandedGroups, setExpandedGroups] = useState(new Set()); // empty = all collapsed by default
 
   const handleFilterChange = (key, val) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
   const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
@@ -287,6 +289,9 @@ const Assets = () => {
   };
   const clearSelection = () => setSelectedIds(new Set());
   const selectedAssets = assets.filter(a => selectedIds.has(a.id));
+  const toggleGroup = (key) => setExpandedGroups(prev => {
+    const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next;
+  });
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   // ── Filtering ──
@@ -378,6 +383,7 @@ const Assets = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
+            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -394,6 +400,7 @@ const Assets = () => {
                 placeholder="Quick search…"
                 className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
             </div>
+
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleExportExcel} disabled={exporting || filtered.length === 0}
@@ -473,7 +480,7 @@ const Assets = () => {
                         : <Square size={16} />}
                     </button>
                   </th>
-                  {['Asset ID','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
+                  {['PO / Group','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -495,38 +502,87 @@ const Assets = () => {
                     <p className="font-medium">No assets found</p>
                     <p className="text-sm mt-1">{activeFilterCount > 0 || search ? 'Try adjusting your filters.' : 'Click "Add Asset" to get started.'}</p>
                   </td></tr>
-                ) : paginated.map(asset => (
-                  <tr key={asset.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(asset.id) ? 'bg-blue-50' : ''}`}>
-                    <td className="px-4 py-3">
-                      <button onClick={() => toggleSelect(asset.id)} className="text-gray-400 hover:text-blue-600">
-                        {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">{asset.asset_id || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.serial_number || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.location || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.assigned_to || '—'}</td>
-                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={asset.status} /></td>
+                ) : (() => {
+                  // Always group by PO Number
+                  const groups = {};
+                  paginated.forEach(asset => {
+                    const key = asset.po_number?.trim() || '(No PO Number)';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(asset);
+                  });
 
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setViewAsset(asset)} title="View"
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={15} /></button>
-                        {asset.status !== 'Cancelled' && (
-                          <button onClick={() => setEditAsset(asset)} title="Edit"
-                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Edit size={15} /></button>
-                        )}
-                        {asset.status !== 'Cancelled' && (
-                          <button onClick={() => setCancelTarget(asset)} title="Cancel Asset"
-                            className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Ban size={15} /></button>
-                        )}
+                  return Object.entries(groups).map(([poKey, groupAssets]) => {
+                    const collapsed = !expandedGroups.has(poKey); // collapsed by default
+                    const allSelected = groupAssets.every(a => selectedIds.has(a.id));
 
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                    return (
+                      <React.Fragment key={poKey}>
+                        {/* PO Group header row */}
+                        <tr className="bg-blue-950 text-white">
+                          <td className="px-4 py-2">
+                            <button onClick={() => {
+                              if (allSelected) groupAssets.forEach(a => setSelectedIds(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
+                              else groupAssets.forEach(a => setSelectedIds(prev => new Set([...prev, a.id])));
+                            }} className="text-blue-300 hover:text-white">
+                              {allSelected
+                                ? <CheckSquare size={16} className="text-blue-300" />
+                                : <Square size={16} />}
+                            </button>
+                          </td>
+                          <td colSpan="8" className="px-4 py-2">
+                            <button onClick={() => toggleGroup(poKey)}
+                              className="flex items-center gap-2 text-sm font-semibold w-full text-left">
+                              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                              <span className="text-blue-300 text-xs font-medium uppercase tracking-wide mr-1">PO#</span>
+                              <span className="font-bold">{poKey}</span>
+                              <span className="ml-2 bg-white/20 text-white text-xs px-2 py-0.5 rounded-full font-normal">
+                                {groupAssets.length} asset{groupAssets.length !== 1 ? 's' : ''}
+                              </span>
+                              {/* Show PR / JOR if present */}
+                              {groupAssets[0]?.pr_number && (
+                                <span className="text-blue-300 text-xs ml-2">PR: {groupAssets[0].pr_number}</span>
+                              )}
+                              {groupAssets[0]?.jor_number && (
+                                <span className="text-blue-300 text-xs ml-1">JOR: {groupAssets[0].jor_number}</span>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                        {/* Asset rows within the group */}
+                        {!collapsed && groupAssets.map(asset => (
+                          <tr key={asset.id} className={`hover:bg-gray-50 transition-colors border-l-4 ${selectedIds.has(asset.id) ? 'bg-blue-50 border-blue-400' : 'border-transparent'}`}>
+                            <td className="px-4 py-3">
+                              <button onClick={() => toggleSelect(asset.id)} className="text-gray-400 hover:text-blue-600">
+                                {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">{asset.asset_id || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.serial_number || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.location || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.assigned_to || '—'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={asset.status} /></td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setViewAsset(asset)} title="View"
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={15} /></button>
+                                {asset.status !== 'Cancelled' && (
+                                  <button onClick={() => setEditAsset(asset)} title="Edit"
+                                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Edit size={15} /></button>
+                                )}
+                                {asset.status !== 'Cancelled' && (
+                                  <button onClick={() => setCancelTarget(asset)} title="Cancel Asset"
+                                    className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Ban size={15} /></button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
