@@ -3,7 +3,7 @@ import { QrCode, Tag, Printer, RefreshCw, Hash } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
 
 // Normalize asset_tags from Supabase — handles array, object, JSON string, or null
 const normalizeAssetTags = (raw) => {
@@ -82,16 +82,10 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
     ));
   };
 
-  const buildPayload = (tag, i) => [
-    '== GOLI ICT INVENTORY ==',
-    `Item Code : ${item.item_code || ''}`,
-    `Asset Tag : ${tag}`,
-    `Unit #    : ${i + 1}`,
-    `Item      : ${formData.description || ''}`,
-    `Category  : ${formData.category || ''}`,
-    `Location  : ${formData.location || ''}`,
-    '========================',
-  ].join('\n');
+  const buildPayload = (tag, i) => buildInventoryQRPayload(
+    { item_code: item.item_code, description: formData.description, category: formData.category, location: formData.location },
+    tag, i
+  );
 
   const printQR = (tags) => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');

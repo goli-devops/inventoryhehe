@@ -3,7 +3,7 @@ import {
   Package, MapPin, Banknote, User, Hash,
   Clock, ArrowRight, Edit3, PlusCircle, CheckCircle, QrCode, Tag, Printer
 } from 'lucide-react';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
 
 const STATUS_STYLES = {
   'In Stock':     'bg-green-100 text-green-700',
@@ -109,17 +109,24 @@ const printInventoryQRCodes = (item, assetTags) => {
 const InventoryDetails = ({ item }) => {
   const [tab,         setTab]         = useState('details');
   const [historyPage, setHistoryPage] = useState(1);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   if (!item) return null;
 
   const totalValue = (item.quantity ?? 0) * (parseFloat(item.unit_price || item.unitPrice) || 0);
   const history    = [...(item.history || [])].reverse();
-  // Normalize asset_tags — Supabase JSONB may return null, string, or object for old records
-  const assetTags  = Array.isArray(item.asset_tags)
-    ? item.asset_tags
-    : (item.asset_tags && typeof item.asset_tags === 'object')
-      ? Object.values(item.asset_tags)
-      : [];
+  // Normalize asset_tags — handles array, JSON string, object, or null from Supabase JSONB
+  const assetTags = (() => {
+    const raw = item.asset_tags;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw === 'string') {
+      try { const p = JSON.parse(raw); return Array.isArray(p) ? p.filter(Boolean) : []; }
+      catch { return raw.trim() ? [raw] : []; }
+    }
+    if (typeof raw === 'object') return Object.values(raw).filter(Boolean);
+    return [];
+  })();
   const totalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
   const pagedHistory = history.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
 
@@ -148,10 +155,64 @@ const InventoryDetails = ({ item }) => {
         <div className="space-y-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <StatusBadge status={item.status} />
-            <span className="text-xs text-gray-400">
-              {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              {assetTags.length > 0 && (
+                <button
+                  onClick={() => setShowAllTags(v => !v)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
+                    showAllTags
+                      ? 'bg-blue-900 text-white border-blue-900'
+                      : 'border-gray-300 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
+                  }`}
+                >
+                  <QrCode size={12} />
+                  {showAllTags ? 'Hide Asset Tags' : `View Asset Tags (${assetTags.length})`}
+                </button>
+              )}
+              <span className="text-xs text-gray-400">
+                {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+              </span>
+            </div>
           </div>
+
+          {/* Asset Tags expandable panel */}
+          {showAllTags && assetTags.length > 0 && (
+            <div className="border border-blue-100 rounded-xl p-4 bg-blue-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                  <Tag size={15} /> Asset Tags — {assetTags.length} unit{assetTags.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  onClick={() => printInventoryQRCodes(item, assetTags)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
+                >
+                  <Printer size={12} /> Print All QR Codes
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                {assetTags.map((tag, i) => {
+                  const payload = buildInventoryQRPayload(item, tag, i);
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-300 transition-colors">
+                      <div className="flex-shrink-0">
+                        <QRCodeDisplay value={payload} size={72} />
+                      </div>
+                      <div className="text-xs min-w-0">
+                        <p className="font-mono font-bold text-gray-800 truncate">{tag}</p>
+                        <p className="text-gray-500 mt-0.5">Unit {i + 1} of {assetTags.length}</p>
+                        <button
+                          onClick={() => printInventoryQRCodes(item, [tag])}
+                          className="mt-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          <Printer size={10} /> Print this QR
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <InfoRow icon={Hash}    label="Item Code"   value={item.item_code || item.itemCode} />
@@ -190,54 +251,6 @@ const InventoryDetails = ({ item }) => {
             <InfoRow icon={Banknote} label="Total Value"
               value={`₱${totalValue.toFixed(2)}`} />
           </div>
-
-          {/* Asset Tags Panel */}
-          {assetTags.length > 0 && (
-            <div className="border border-blue-100 rounded-xl p-4 bg-blue-50 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                  <Tag size={15} /> Asset Tags — {assetTags.length} unit{assetTags.length !== 1 ? 's' : ''}
-                </p>
-                <button
-                  onClick={() => printInventoryQRCodes(item, assetTags)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
-                >
-                  <Printer size={12} /> Print All QR Codes
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-                {assetTags.map((tag, i) => {
-                  const payload = [
-                    '== GOLI ICT INVENTORY ==',
-                    `Item Code : ${item.item_code || ''}`,
-                    `Asset Tag : ${tag}`,
-                    `Unit #    : ${i + 1}`,
-                    `Item      : ${item.description || ''}`,
-                    `Category  : ${item.category || ''}`,
-                    `Location  : ${item.location || ''}`,
-                    '========================',
-                  ].join('\n');
-                  return (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-300 transition-colors">
-                      <div className="flex-shrink-0">
-                        <QRCodeDisplay value={payload} size={72} />
-                      </div>
-                      <div className="text-xs min-w-0">
-                        <p className="font-mono font-bold text-gray-800 truncate">{tag}</p>
-                        <p className="text-gray-500 mt-0.5">Unit {i + 1} of {assetTags.length}</p>
-                        <button
-                          onClick={() => printInventoryQRCodes(item, [tag])}
-                          className="mt-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          <Printer size={10} /> Print this QR
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -302,7 +315,6 @@ const InventoryDetails = ({ item }) => {
                   })}
                 </div>
               </div>
-              
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">

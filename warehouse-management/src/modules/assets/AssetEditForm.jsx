@@ -21,7 +21,8 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
     status:           asset.status || 'Available',
     purchaseDate:     asset.purchase_date || asset.purchaseDate || new Date().toISOString().split('T')[0],
     purchasePrice:    asset.purchase_price || asset.purchasePrice || 0,
-    warranty:         asset.warranty || '',
+    warrantyValue:    (asset.warranty || '').split(' ')[0] || '',
+    warrantyUnit:     (asset.warranty || '').split(' ').slice(1).join(' ') || 'Year/s',
   });
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +53,7 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
         status:            formData.status,
         purchase_date:     formData.purchaseDate,
         purchase_price:    formData.purchasePrice,
-        warranty:          formData.warranty,
+        warranty:          formData.warrantyValue ? `${formData.warrantyValue} ${formData.warrantyUnit}` : '',
       });
       if (result) { onSuccess?.(result); onClose(); }
       else alert('Failed to update asset');
@@ -110,11 +111,11 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
               className={inp} /></div>
           <div><label className={lbl}>Status <span className="text-red-500">*</span></label>
             <select name="status" value={formData.status} onChange={handleInputChange} required className={inp}>
-              <option value="Available">Available</option>
-              <option value="In Use">In Use</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="Repair">Repair</option>
-              <option value="Retired">Retired</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Deployed">Deployed</option>
+              <option value="For Delivery">For Delivery</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Completed">Completed</option>
             </select></div>
           <div><label className={lbl}>Location</label>
             <input type="text" name="location" value={formData.location} onChange={handleInputChange}
@@ -128,9 +129,21 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
           <div><label className={lbl}>Purchase Price</label>
             <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleNumberChange}
               min="0" step="0.01" className={inp} /></div>
-          <div className="col-span-2"><label className={lbl}>Warranty</label>
-            <input type="text" name="warranty" value={formData.warranty} onChange={handleInputChange}
-              placeholder="e.g. 3 years" className={inp} /></div>
+          <div className="col-span-2">
+            <label className={lbl}>Warranty</label>
+            <div className="flex gap-2">
+              <input type="number" min="0" name="warrantyValue" value={formData.warrantyValue}
+                onChange={handleInputChange} placeholder="e.g. 1"
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <select name="warrantyUnit" value={formData.warrantyUnit} onChange={handleInputChange}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option>Days</option>
+                <option>Weeks</option>
+                <option>Months</option>
+                <option>Year/s</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 

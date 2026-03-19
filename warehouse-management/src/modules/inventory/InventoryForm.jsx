@@ -3,19 +3,9 @@ import { Hash, QrCode, RefreshCw, ChevronDown, ChevronUp, Package } from 'lucide
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
 
-// ── QR payload for an inventory unit ─────────────────────────────────────────
-const buildInventoryQRPayload = (item, tag, index) => [
-  '== GOLI ICT INVENTORY ==',
-  `Item Code : ${item.itemCode || ''}`,
-  `Asset Tag : ${tag}`,
-  `Unit #    : ${index + 1}`,
-  `Item      : ${item.description || ''}`,
-  `Category  : ${item.category || ''}`,
-  `Location  : ${item.location || ''}`,
-  '========================',
-].join('\n');
+// buildInventoryQRPayload imported from QRCodeDisplay
 
 // ── Auto-generate a numeric asset tag ────────────────────────────────────────
 const genTag = (index) => {

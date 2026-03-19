@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Filter, Scan, Eye, Edit, Trash2, Ban,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
   Search, ShieldAlert, Square, CheckSquare,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -30,14 +30,13 @@ const exportToExcel = async (rows) => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
   const XLSX = window.XLSX;
   const data = [
-    ['Asset ID','Description','Category','Serial No.','Location','Assigned To','Status','Purchase Date','Purchase Price','Warranty','Tagged'],
+    ['PO Number','Asset ID (Tag)','Description','Category','Serial No.','Location','Assigned To','Status','Purchase Date','Purchase Price','Warranty'],
     ...rows.map(a => [
-      a.asset_id || '', a.description || '', a.category || '',
+      a.po_number || '', a.asset_id || '', a.description || '', a.category || '',
       a.serial_number || '', a.location || '',
       a.assigned_to || '', a.status || '',
       a.purchase_date ? new Date(a.purchase_date).toLocaleDateString() : '',
       a.purchase_price ?? 0, a.warranty || '',
-      (a.is_tagged || a.isTagged) ? 'Yes' : 'No',
     ]),
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
@@ -57,7 +56,7 @@ const exportToPDF = async (rows) => {
   doc.text(`Generated: ${new Date().toLocaleString()}  |  Total: ${rows.length}`, 14, 22);
   doc.autoTable({
     startY: 27,
-    head: [['Asset ID','Description','Category','Location','Assigned To','Status','Purchase Date','Price']],
+    head: [['PO Number','Asset ID (Tag)','Description','Category','Location','Assigned To','Status','Price']],
     body: rows.map(a => [
       a.asset_id || '', a.description || '', a.category || '',
       a.location || '', a.assigned_to || '', a.status || '',
@@ -73,12 +72,12 @@ const exportToPDF = async (rows) => {
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 const STATUS_STYLES = {
-  Available:   'bg-green-100 text-green-800',
-  'In Use':    'bg-blue-100 text-blue-800',
-  Maintenance: 'bg-yellow-100 text-yellow-800',
-  Repair:      'bg-orange-100 text-orange-800',
-  Retired:     'bg-gray-100 text-gray-800',
-  Cancelled:   'bg-red-100 text-red-800',
+  'In Progress':  'bg-blue-100 text-blue-800',
+  'Deployed':     'bg-green-100 text-green-800',
+  'For Delivery': 'bg-yellow-100 text-yellow-800',
+  'On Hold':      'bg-orange-100 text-orange-800',
+  'Completed':    'bg-purple-100 text-purple-800',
+  'Cancelled':    'bg-red-100 text-red-800',
 };
 const StatusBadge = ({ status }) => (
   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[status] || 'bg-gray-100 text-gray-600'}`}>
@@ -212,9 +211,149 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
   );
 };
 
+
+// ── Edit PO Group Form ────────────────────────────────────────────────────────
+const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
+  const { updateAsset } = useWMS();
+  const [rows, setRows] = useState(
+    groupAssets.map(a => ({
+      id:           a.id,
+      asset_id:     a.asset_id || '',
+      description:  a.description || '',
+      serial_number:a.serial_number || '',
+      assigned_to:  a.assigned_to || '',
+      location:     a.location || '',
+      status:       a.status || 'In Progress',
+      warranty:     a.warranty || '',
+    }))
+  );
+  const [loading, setLoading] = useState(false);
+  const STATUSES = ['In Progress','Deployed','For Delivery','On Hold','Completed','Cancelled'];
+
+  const updateRow = (i, field, value) =>
+    setRows(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: value }; return n; });
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await Promise.all(rows.map(row =>
+        updateAsset(row.id, {
+          serial_number: row.serial_number,
+          assigned_to:   row.assigned_to,
+          location:      row.location,
+          status:        row.status,
+          warranty:      row.warranty,
+        })
+      ));
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update group');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inp = 'w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500';
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">
+        Edit details for all <strong>{rows.length}</strong> asset{rows.length !== 1 ? 's' : ''} in this PO group.
+        Changes save all items at once.
+      </p>
+
+      {/* Shared apply-to-all controls */}
+      <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+        <p className="text-xs font-semibold text-blue-700 mb-2">Apply to all assets in group:</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Status</label>
+            <select onChange={e => rows.forEach((_, i) => updateRow(i, 'status', e.target.value))}
+              defaultValue="" className={inp}>
+              <option value="" disabled>— Set all —</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Location</label>
+            <input type="text" placeholder="Set all locations"
+              onChange={e => rows.forEach((_, i) => updateRow(i, 'location', e.target.value))}
+              className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Assigned To</label>
+            <input type="text" placeholder="Set all assignees"
+              onChange={e => rows.forEach((_, i) => updateRow(i, 'assigned_to', e.target.value))}
+              className={inp} />
+          </div>
+        </div>
+      </div>
+
+      {/* Per-asset rows */}
+      <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-xl">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 sticky top-0">
+            <tr>
+              {['Asset ID','Description','Serial No.','Assigned To','Location','Status','Warranty'].map(h => (
+                <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map((row, i) => (
+              <tr key={row.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.asset_id}</td>
+                <td className="px-3 py-2 text-gray-700 max-w-32 truncate">{row.description}</td>
+                <td className="px-3 py-2">
+                  <input type="text" value={row.serial_number}
+                    onChange={e => updateRow(i, 'serial_number', e.target.value)}
+                    className={inp} placeholder="SN-xxxxx" />
+                </td>
+                <td className="px-3 py-2">
+                  <input type="text" value={row.assigned_to}
+                    onChange={e => updateRow(i, 'assigned_to', e.target.value)}
+                    className={inp} placeholder="Employee" />
+                </td>
+                <td className="px-3 py-2">
+                  <input type="text" value={row.location}
+                    onChange={e => updateRow(i, 'location', e.target.value)}
+                    className={inp} placeholder="Location" />
+                </td>
+                <td className="px-3 py-2">
+                  <select value={row.status} onChange={e => updateRow(i, 'status', e.target.value)} className={inp}>
+                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <input type="text" value={row.warranty}
+                    onChange={e => updateRow(i, 'warranty', e.target.value)}
+                    className={inp} placeholder="e.g. 1 Year/s" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+        <button onClick={onClose}
+          className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+          Cancel
+        </button>
+        <button onClick={handleSave} disabled={loading}
+          className="px-4 py-2 text-sm font-semibold text-white bg-blue-900 rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
+          {loading ? 'Saving…' : `Save All ${rows.length} Assets`}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
 const FilterPanel = ({ filters, onChange, onReset, categories }) => {
-  const STATUSES = ['Available','In Use','Maintenance','Repair','Retired','Cancelled'];
+  const STATUSES = ['In Progress','Deployed','For Delivery','On Hold','Completed','Cancelled'];
   const inp = 'w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
   const lbl = 'block text-xs font-medium text-gray-500 mb-1';
   return (
@@ -264,7 +403,8 @@ const Assets = () => {
   const [editAsset,       setEditAsset]       = useState(null);
   const [cancelTarget,    setCancelTarget]    = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
-  const [bulkCancelQueue, setBulkCancelQueue] = useState(null); // array of assets to cancel in bulk
+  const [bulkCancelQueue, setBulkCancelQueue] = useState(null);
+  const [editGroupTarget,  setEditGroupTarget]  = useState(null); // { poKey, assets[] }
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
   const [isScannerOpen,   setIsScannerOpen]   = useState(false);
   const [showFilters,     setShowFilters]     = useState(false);
@@ -289,6 +429,19 @@ const Assets = () => {
   };
   const clearSelection = () => setSelectedIds(new Set());
   const selectedAssets = assets.filter(a => selectedIds.has(a.id));
+
+  // Collapse all groups when clicking outside the table
+  const tableRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      if (tableRef.current && !tableRef.current.contains(e.target)) {
+        setExpandedGroups(new Set());
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const toggleGroup = (key) => setExpandedGroups(prev => {
     const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next;
   });
@@ -302,7 +455,8 @@ const Assets = () => {
       const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
       const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
       return (
-        (!q || [a.asset_id, a.description, a.category, a.location, a.assigned_to, a.serial_number]
+        (!q || [a.asset_id, a.description, a.category, a.location, a.assigned_to,
+                 a.serial_number, a.po_number, a.pr_number, a.jor_number]
           .some(f => String(f || '').toLowerCase().includes(q))) &&
         (!filters.assetId    || String(a.asset_id    || '').toLowerCase().includes(filters.assetId.toLowerCase())) &&
         (!filters.category   || a.category  === filters.category) &&
@@ -315,12 +469,26 @@ const Assets = () => {
     });
   }, [assets, filters, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // Group filtered assets by PO number first
+  const groupedByPO = useMemo(() => {
+    const groups = {};
+    filtered.forEach(asset => {
+      const key = asset.po_number?.trim() || '(No PO Number)';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(asset);
+    });
+    return Object.entries(groups); // [ [poKey, assets[]], ... ]
+  }, [filtered]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedByPO.length / pageSize));
+  const paginatedGroups = groupedByPO.slice((page - 1) * pageSize, page * pageSize);
+  // paginated still needed for select-all count
+  const paginated = paginatedGroups.flatMap(([, assets]) => assets);
 
   const inUse       = assets.filter(a => a.status === 'In Use').length;
   const maintenance = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
   const cancelled   = assets.filter(a => a.status === 'Cancelled').length;
+  const completed   = assets.filter(a => a.status === 'Completed').length;
 
   const handleCancelConfirm = async (reason) => {
     const ok = await cancelAsset(cancelTarget.id, reason);
@@ -330,11 +498,11 @@ const Assets = () => {
 
   const handleBulkCancelConfirm = async (reason) => {
     if (!bulkCancelQueue?.length) return;
-    let failed = 0;
-    for (const asset of bulkCancelQueue) {
-      const ok = await cancelAsset(asset.id, reason);
-      if (!ok) failed++;
-    }
+    // Run all cancellations in parallel
+    const results = await Promise.all(
+      bulkCancelQueue.map(asset => cancelAsset(asset.id, reason))
+    );
+    const failed = results.filter(ok => !ok).length;
     if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
     setBulkCancelQueue(null);
     clearSelection();
@@ -423,8 +591,8 @@ const Assets = () => {
           {[
             { label: 'Total Assets',   value: assets.length,       color: 'text-gray-800' },
             { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
-            { label: 'In Use',         value: inUse,               color: 'text-blue-600' },
-            { label: 'Maintenance',    value: maintenance,         color: 'text-orange-600' },
+            { label: 'Deployed',       value: inUse,               color: 'text-green-600' },
+            { label: 'In Progress',    value: maintenance,         color: 'text-blue-600' },
             { label: 'Cancelled',      value: cancelled,           color: 'text-red-600' },
           ].map(({ label, value, color }) => (
             <Card key={label} padding="p-4">
@@ -455,8 +623,7 @@ const Assets = () => {
 
         {/* Results summary */}
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Showing <strong>{paginated.length}</strong> of <strong>{filtered.length}</strong> assets
-            {filtered.length !== assets.length && ` (filtered from ${assets.length})`}
+          <span>Showing <strong>{paginatedGroups.length}</strong> PO group{paginatedGroups.length !== 1 ? 's' : ''} (<strong>{paginated.length}</strong> assets) of <strong>{groupedByPO.length}</strong> total groups
           </span>
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
@@ -468,6 +635,7 @@ const Assets = () => {
         </div>
 
         {/* Table */}
+        <div ref={tableRef}>
         <Card padding="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -480,7 +648,7 @@ const Assets = () => {
                         : <Square size={16} />}
                     </button>
                   </th>
-                  {['PO / Group','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
+                  {['Asset ID (Tag)','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -503,15 +671,7 @@ const Assets = () => {
                     <p className="text-sm mt-1">{activeFilterCount > 0 || search ? 'Try adjusting your filters.' : 'Click "Add Asset" to get started.'}</p>
                   </td></tr>
                 ) : (() => {
-                  // Always group by PO Number
-                  const groups = {};
-                  paginated.forEach(asset => {
-                    const key = asset.po_number?.trim() || '(No PO Number)';
-                    if (!groups[key]) groups[key] = [];
-                    groups[key].push(asset);
-                  });
-
-                  return Object.entries(groups).map(([poKey, groupAssets]) => {
+                  return paginatedGroups.map(([poKey, groupAssets]) => {
                     const collapsed = !expandedGroups.has(poKey); // collapsed by default
                     const allSelected = groupAssets.every(a => selectedIds.has(a.id));
 
@@ -547,6 +707,15 @@ const Assets = () => {
                               )}
                             </button>
                           </td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
+                              title="Edit PO Group"
+                              className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+                            >
+                              <Edit size={12} /> Edit Group
+                            </button>
+                          </td>
                         </tr>
                         {/* Asset rows within the group */}
                         {!collapsed && groupAssets.map(asset => (
@@ -556,7 +725,11 @@ const Assets = () => {
                                 {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
                               </button>
                             </td>
-                            <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">{asset.asset_id || '—'}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
+                              {asset.inventory_asset_tag?.trim()
+                                ? asset.inventory_asset_tag
+                                : <span className="text-gray-400 font-normal">N/A</span>}
+                            </td>
                             <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.serial_number || '—'}</td>
@@ -606,7 +779,7 @@ const Assets = () => {
 
         {/* Modals */}
         <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Asset" size="lg">
-          <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => setIsAddModalOpen(false)} />
+          <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => {}} />
         </Modal>
 
         <Modal isOpen={!!viewAsset} onClose={() => setViewAsset(null)} title="Asset Details" size="lg">
@@ -642,8 +815,21 @@ const Assets = () => {
           <DeleteConfirmModal asset={deleteTarget} onConfirm={handleDeleteConfirm} onCancel={() => setDeleteTarget(null)} />
         </Modal>
 
+        {/* Edit PO Group Modal */}
+        <Modal isOpen={!!editGroupTarget} onClose={() => setEditGroupTarget(null)}
+          title={`Edit PO Group: ${editGroupTarget?.poKey || ''}`} size="lg">
+          {editGroupTarget && (
+            <EditGroupForm
+              groupAssets={editGroupTarget.assets}
+              onClose={() => setEditGroupTarget(null)}
+              onSuccess={() => setEditGroupTarget(null)}
+            />
+          )}
+        </Modal>
+
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
+          </div>
       </div>}
     </div>
   );

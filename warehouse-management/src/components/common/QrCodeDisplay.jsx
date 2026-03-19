@@ -1,31 +1,37 @@
 import React, { useEffect, useRef } from 'react';
 
-// ─── Payload builder ──────────────────────────────────────────────────────────
-export const buildQRPayload = (asset) => [
+// ─── Unified payload builders — same format for Inventory and Asset QR codes ──
+
+// Inventory item QR payload (used in InventoryForm, InventoryEditForm, InventoryDetails)
+export const buildInventoryQRPayload = (item, tag, unitIndex) => [
   '== GOLI ICT ASSET ==',
-  `ID       : ${asset.asset_id || asset.assetID || 'N/A'}`,
-  `Item     : ${asset.description || 'N/A'}`,
-  `Category : ${asset.category || 'N/A'}`,
-  `Status   : ${asset.status || 'N/A'}`,
-  `Location : ${asset.location || 'N/A'}`,
-  `Assigned : ${asset.assigned_to || asset.assignedTo || 'Unassigned'}`,
-  `JOR #    : ${asset.jor_number || asset.jorNumber || 'N/A'}`,
-  `Serial # : ${asset.serial_number || asset.serialNumber || 'N/A'}`,
+  `Asset Tag : ${tag || 'N/A'}`,
+  `Unit #    : ${(unitIndex ?? 0) + 1}`,
+  `Item Code : ${item.item_code || item.itemCode || 'N/A'}`,
+  `Item      : ${item.description || 'N/A'}`,
+  `Category  : ${item.category || 'N/A'}`,
+  `Location  : ${item.location || 'N/A'}`,
   '====================',
 ].join('\n');
 
-// ─── Minimal QR Matrix encoder (no external lib) ─────────────────────────────
-// Implements QR Code Model 2, version 1-10, byte mode, ECC level M.
-// Based on the public domain qrcode-generator algorithm.
+// Asset QR payload (used in QRCodeDisplay when passed an asset object)
+export const buildAssetQRPayload = (asset) => [
+  '== GOLI ICT ASSET ==',
+  `Asset Tag : ${asset.asset_id || asset.inventory_asset_tag || 'N/A'}`,
+  `Item      : ${asset.description || 'N/A'}`,
+  `Category  : ${asset.category || 'N/A'}`,
+  `Status    : ${asset.status || 'N/A'}`,
+  `Location  : ${asset.location || 'N/A'}`,
+  `Assigned  : ${asset.assigned_to || asset.assignedTo || 'Unassigned'}`,
+  `Serial #  : ${asset.serial_number || asset.serialNumber || 'N/A'}`,
+  '====================',
+].join('\n');
 
-function createQRMatrix(text) {
-  // Use the qrcode-generator library pattern via dynamic script injection
-  // We use a Promise-based singleton loader
-  return text;
-}
+// Keep backward-compatible alias
+export const buildQRPayload = buildAssetQRPayload;
 
-// ─── Component ───────────────────────────────────────────────────────────────
-let _qrLoaded = false;
+// ─── QR lib loader ────────────────────────────────────────────────────────────
+let _qrLoaded  = false;
 let _qrLoading = false;
 const _qrQueue = [];
 
@@ -34,9 +40,7 @@ function ensureQRLib(cb) {
   _qrQueue.push(cb);
   if (_qrLoading) return;
   _qrLoading = true;
-
   const script = document.createElement('script');
-  // qrcodejs — MIT licensed, well-known, stable CDN
   script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
   script.onload = () => {
     _qrLoaded = true;
@@ -51,22 +55,34 @@ function ensureQRLib(cb) {
   document.head.appendChild(script);
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+// Props:
+//   asset  — asset/inventory object → builds payload automatically
+//   value  — pre-built string payload (takes priority over asset)
+//   size   — px size (default 200)
 const QRCodeDisplay = ({ asset, value, size = 200 }) => {
-  const ref = useRef(null);
+  const ref       = useRef(null);
+  const prevText  = useRef('');
 
   useEffect(() => {
-    const text = asset ? buildQRPayload(asset) : (value || '');
+    const text = value
+      ? String(value)
+      : asset
+        ? buildAssetQRPayload(asset)
+        : '';
+
     if (!text || !ref.current) return;
+    if (text === prevText.current) return; // skip re-render if same text
+    prevText.current = text;
 
     ensureQRLib(() => {
       if (!ref.current || !window.QRCode) return;
-      // Clear any previous render
       ref.current.innerHTML = '';
       try {
         new window.QRCode(ref.current, {
           text,
-          width: size,
-          height: size,
+          width:        size,
+          height:       size,
           correctLevel: window.QRCode.CorrectLevel.M,
         });
       } catch (e) {
@@ -75,7 +91,12 @@ const QRCodeDisplay = ({ asset, value, size = 200 }) => {
     });
   }, [asset, value, size]);
 
-  return <div ref={ref} style={{ width: size, height: size, lineHeight: 0 }} />;
+  return (
+    <div
+      ref={ref}
+      style={{ width: size, height: size, lineHeight: 0, flexShrink: 0 }}
+    />
+  );
 };
 
 export default QRCodeDisplay;

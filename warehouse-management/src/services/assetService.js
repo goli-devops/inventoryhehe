@@ -20,22 +20,29 @@ const FIELD_LABELS = {
 
 const AssetService = {
   generateAssetID(category) {
-    const categoryCode = category.substring(0, 3).toUpperCase();
-    const timestamp    = Date.now().toString().slice(-8);
-    const random       = Math.floor(Math.random() * 9000 + 1000);
-    return `${categoryCode}-${timestamp}${random}`;
+    const categoryCode = (category || 'UNK').substring(0, 3).toUpperCase();
+    const timestamp    = Date.now().toString().slice(-6);
+    const random       = Math.floor(Math.random() * 900 + 100);
+    return `${categoryCode}-${timestamp}-${random}`; // e.g. ELC-123456-456 (max ~16 chars)
   },
 
   generateQRCode(assetID) {
+    // Store short reference only — full QR payload is built client-side
+    const shortID = String(assetID).substring(0, 50); // hard cap at 50 chars
     return {
-      qr_code: `QR-${assetID}`,
-      qr_url:  `https://wms.goli.com/assets/${assetID}`
+      qr_code: shortID,
+      qr_url:  `${shortID}` // keep qr_url same as qr_code for simplicity
     };
   },
 
   async create(assetData) {
     try {
-      const assetID = this.generateAssetID(assetData.category);
+      // Use inventory asset tag as asset_id; display N/A in UI but store unique ID in DB
+      const tag = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
+      // Generate unique fallback using unitIndex to prevent duplicate keys in parallel deploys
+      const fallbackID = this.generateAssetID(assetData.category) +
+        (assetData.unitIndex != null ? `-${assetData.unitIndex}` : '');
+      const assetID = tag || fallbackID;
       const qrData  = this.generateQRCode(assetID);
       const newAsset = {
         asset_id: assetID, description: assetData.description,
@@ -52,8 +59,9 @@ const AssetService = {
         purchase_date: assetData.purchaseDate || new Date().toISOString(),
         purchase_price: assetData.purchasePrice || 0, warranty: assetData.warranty || '',
         // Use inventory QR payload if provided, otherwise generate from asset ID
-        qr_code: assetData.inventoryQrCode || qrData.qr_code,
+        qr_code: qrData.qr_code, // short reference ID only — full payload built client-side
         qr_url: qrData.qr_url, is_tagged: true,
+        // inventory_qr_payload stored separately if needed — not in varchar(100) column
         inventory_item_id: assetData.inventoryItemId || null, created_by: assetData.createdBy,
         history: [{ action: 'Created', date: new Date().toISOString(), user: assetData.createdBy, status: assetData.status || 'Available' }],
       };

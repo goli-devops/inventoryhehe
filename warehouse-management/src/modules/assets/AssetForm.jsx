@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Package, AlertCircle, Plus, Trash2, ChevronDown, ChevronUp,
+  Package, AlertCircle, Plus, Trash2,
   Tag, FileText, Printer, CheckCircle2
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 
-// ── PDF helpers ───────────────────────────────────────────────────────────────
 const loadScript = (src) => new Promise((res, rej) => {
   if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
   const s = document.createElement('script');
@@ -14,59 +13,134 @@ const loadScript = (src) => new Promise((res, rej) => {
   document.head.appendChild(s);
 });
 
+// ── Accountability Form — matches ICT DEPARTMENT ACCOUNTABILITY FORM ──────────
 const printAccountabilityForm = async (deployedAssets, sharedData) => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const today = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 14;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  doc.setFontSize(14); doc.setFont(undefined, 'bold');
-  doc.text('PROPERTY ACCOUNTABILITY FORM', 105, 18, { align: 'center' });
-  doc.setFontSize(9); doc.setFont(undefined, 'normal');
-  doc.text('GOLI – ICT Warehouse Management System', 105, 24, { align: 'center' });
+  // Red top border line
+  doc.setDrawColor(200, 0, 0); doc.setLineWidth(1.5);
+  doc.line(0, 6, W, 6); doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.25);
 
-  doc.setFontSize(9);
-  const meta = [
-    ['Accountability Seq. No.:', sharedData.accountabilitySeq || ''],
-    ['PO Number:', sharedData.poNumber || ''],
-    ['PR Number:', sharedData.prNumber || ''],
-    ['JOR Number:', sharedData.jorNumber || ''],
-    ['Date:', today],
-    ['Location:', sharedData.location || ''],
-    ['Assigned To:', sharedData.assignedTo || ''],
-  ];
-  let y = 33;
-  meta.forEach(([k, v]) => {
-    doc.setFont(undefined, 'bold'); doc.text(k, 14, y);
-    doc.setFont(undefined, 'normal'); doc.text(v, 65, y);
-    y += 6;
-  });
+  let y = 17;
+  // Header
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+  doc.text('ICT DEPARTMENT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(13);
+  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 3;
+
+  // No. top-right (red)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W - 44, 13);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(14);
+  doc.text(String(sharedData.accountabilitySeq || ''), W - 38, 13);
+  doc.setTextColor(0, 0, 0);
+
+  // Dept / Position row (match image: Name___ Dept.___ Position:___)
+  y += 5;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  doc.text('Dept.:', M, y);
+  doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 110, y + 0.5);
+  doc.text(sharedData.jorNumber || '', M + 13, y - 0.5);
+
+  // Name row
+  y += 7;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Name:', M, y);
+  doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 120, y + 0.5);
+  doc.text(sharedData.assignedTo || '', M + 13, y - 0.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Position:', 122, y);
+  doc.setFont('helvetica', 'normal');
+  doc.line(134, y + 0.5, W - M, y + 0.5);
+
+  // Date row
+  y += 7;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Date:', M, y);
+  doc.setFont('helvetica', 'normal');
+  doc.line(M + 11, y + 0.5, 80, y + 0.5);
+  doc.text(today, M + 12, y - 0.5);
+
+  y += 6;
+
+  // Main table: DATE | CODE | PARTICULARS | QTY | F | DATE RECEIVED | F | DATE RETURNED/TRANSFERRED
+  const tableRows = deployedAssets.map(a => [
+    today,
+    a.asset_id || a.inventory_asset_tag || '',
+    a.description || '',
+    '1',
+    '',
+    '',
+    '',
+    '',
+  ]);
+  // Pad to at least 10 rows
+  while (tableRows.length < 10) tableRows.push(['', '', '', '', '', '', '', '']);
 
   doc.autoTable({
-    startY: y + 4,
-    head: [['#', 'Asset ID', 'Description', 'Category', 'Serial No.', 'Inv. Asset Tag', 'Status']],
-    body: deployedAssets.map((a, i) => [
-      i + 1,
-      a.asset_id || '',
-      a.description || '',
-      a.category || '',
-      a.serial_number || '',
-      a.inventory_asset_tag || '',
-      a.status || '',
-    ]),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [30, 58, 138] },
+    startY: y,
+    head: [[
+      { content: 'DATE', rowSpan: 1 },
+      { content: 'CODE', rowSpan: 1 },
+      { content: 'PARTICULARS', rowSpan: 1 },
+      { content: 'QTY.', rowSpan: 1 },
+      { content: 'F', rowSpan: 1 },
+      { content: 'DATE\nRECEIVED', rowSpan: 1 },
+      { content: 'F', rowSpan: 1 },
+      { content: 'DATE RETURNED/\nTRANSFERED', rowSpan: 1 },
+    ]],
+    body: tableRows,
+    styles: { fontSize: 7.5, cellPadding: 2, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
+    headStyles: {
+      fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold',
+      lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10
+    },
+    bodyStyles: { minCellHeight: 9, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: {
+      0: { cellWidth: 18, halign: 'center' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 68 },
+      3: { cellWidth: 12, halign: 'center' },
+      4: { cellWidth: 8,  halign: 'center' },
+      5: { cellWidth: 22, halign: 'center' },
+      6: { cellWidth: 8,  halign: 'center' },
+      7: { cellWidth: 28, halign: 'center' },
+    },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3,
+    margin: { left: M, right: M },
   });
 
-  const finalY = doc.lastAutoTable.finalY + 16;
-  doc.setFontSize(9);
-  doc.text('Received by:', 14, finalY);
-  doc.line(14, finalY + 14, 90, finalY + 14);
-  doc.text('Signature over Printed Name / Date', 14, finalY + 19);
-  doc.text('Issued by:', 110, finalY);
-  doc.line(110, finalY + 14, 196, finalY + 14);
-  doc.text('ICT Officer / Date', 110, finalY + 19);
+  const fy = doc.lastAutoTable.finalY + 6;
+
+  // Undertaking text
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.text(
+    'I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.',
+    M, fy, { maxWidth: W - M * 2 }
+  );
+
+  // Signature block — 3 columns: APPROVED BY / ISSUED BY / SIGNATURE OF EMPLOYEE
+  const sigY = fy + 18;
+  const cols = [
+    { x: M,        label: 'APPROVED BY:',           copy: 'Original - Accounting' },
+    { x: 83,       label: 'ISSUED BY:',              copy: 'Duplicate - Audit' },
+    { x: 150,      label: 'SIGNATURE OF EMPLOYEE',   copy: 'Triplicate - Personal File' },
+  ];
+  cols.forEach(col => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text(col.label, col.x, sigY);
+    doc.setFont('helvetica', 'normal');
+    doc.line(col.x, sigY + 12, col.x + 50, sigY + 12);
+    doc.setFontSize(7);
+    doc.text(col.copy, col.x, sigY + 16);
+  });
 
   doc.save(`Accountability_Form_${sharedData.accountabilitySeq || Date.now()}.pdf`);
 };
@@ -75,56 +149,72 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const today = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 20;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  doc.setFontSize(14); doc.setFont(undefined, 'bold');
-  doc.text('TRANSMITTAL SLIP', 105, 18, { align: 'center' });
-  doc.setFontSize(9); doc.setFont(undefined, 'normal');
-  doc.text('GOLI – ICT Warehouse Management System', 105, 24, { align: 'center' });
+  let y = 16;
 
-  doc.setFontSize(9);
-  const meta = [
-    ['Transmittal Seq. No.:', sharedData.transmittalSeq || ''],
-    ['PO Number:', sharedData.poNumber || ''],
-    ['PR Number:', sharedData.prNumber || ''],
-    ['JOR Number:', sharedData.jorNumber || ''],
-    ['Date:', today],
-    ['Destination:', sharedData.location || ''],
-    ['Recipient:', sharedData.assignedTo || ''],
-  ];
-  let y = 33;
-  meta.forEach(([k, v]) => {
-    doc.setFont(undefined, 'bold'); doc.text(k, 14, y);
-    doc.setFont(undefined, 'normal'); doc.text(v, 65, y);
-    y += 6;
+  // Header — CORPORATE-ICT bold, left-aligned
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+  doc.text('CORPORATE-ICT',W / 1, y, { align: 'center' });
+
+  // "Transmittal Slip" on second line, center-aligned
+  doc.setFontSize(14);
+  doc.text('Transmittal Slip', W / 2, y, { align: 'center' });
+
+  // Transmittal No. upper right (same line as "Transmittal Slip")
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text('N\u00ba', W - 52, y - 1);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(sharedData.transmittalSeq || ''), W - 44, y);
+  doc.setTextColor(0, 0, 0);
+  y += 10;
+
+  // Date line right-aligned
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Date:', W - 55, y);
+  doc.line(W - 47, y + 0.5, W - M, y + 0.5);
+  doc.text(today, W - 46, y - 0.5);
+  y += 8;
+
+  // Consolidate assets into unique descriptions + quantities
+  const itemMap = {};
+  deployedAssets.forEach(a => {
+    const key = a.description || 'Unknown Item';
+    if (!itemMap[key]) itemMap[key] = 0;
+    itemMap[key]++;
   });
+  const uniqueItems = Object.entries(itemMap).map(([desc, qty]) => [desc, qty]);
+
+  // Table: 2 columns — Item Description | Quantity — padded to 10 rows
+  const tableRows = [...uniqueItems];
+  while (tableRows.length < 10) tableRows.push(['', '']);
 
   doc.autoTable({
-    startY: y + 4,
-    head: [['#', 'Asset ID', 'Description', 'Category', 'Serial No.', 'Inv. Asset Tag', 'Qty', 'Price']],
-    body: deployedAssets.map((a, i) => [
-      i + 1,
-      a.asset_id || '',
-      a.description || '',
-      a.category || '',
-      a.serial_number || '',
-      a.inventory_asset_tag || '',
-      1,
-      `P${parseFloat(a.purchase_price || 0).toFixed(2)}`,
-    ]),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [5, 150, 105] },
+    startY: y,
+    head: [['Item Description', 'Quantity']],
+    body: tableRows,
+    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
+    headStyles: {
+      fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold',
+      lineWidth: 0.3, lineColor: [0,0,0], halign: 'center'
+    },
+    bodyStyles: { minCellHeight: 10, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: {
+      0: { cellWidth: 130 },
+      1: { cellWidth: 30, halign: 'center' },
+    },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3,
+    margin: { left: M, right: M },
   });
 
-  const finalY = doc.lastAutoTable.finalY + 16;
-  doc.setFontSize(9);
-  doc.text('Received by:', 14, finalY);
-  doc.line(14, finalY + 14, 90, finalY + 14);
-  doc.text('Signature over Printed Name / Date', 14, finalY + 19);
-  doc.text('Released by:', 110, finalY);
-  doc.line(110, finalY + 14, 196, finalY + 14);
-  doc.text('ICT Officer / Date', 110, finalY + 19);
+  const fy = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.line(M, fy, M + 42, fy);
+  doc.text('Account', M + 10, fy + 5);
+  doc.line(W - M - 58, fy, W - M, fy);
+  doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
 
   doc.save(`Transmittal_Slip_${sharedData.transmittalSeq || Date.now()}.pdf`);
 };
@@ -184,6 +274,7 @@ const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, o
                     {(line.assignedTo || sharedData.assignedTo) && (
                       <p className="text-xs text-gray-400">Assigned: {line.assignedTo || sharedData.assignedTo}</p>
                     )}
+                    {line.warranty && <p className="text-xs text-gray-400">Warranty: {line.warranty}</p>}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{item?.category || '—'}</td>
                   <td className="px-4 py-3 text-center">
@@ -299,7 +390,7 @@ const SuccessModal = ({ deployedAssets, sharedData, onClose }) => {
 };
 
 // ── Main Form ─────────────────────────────────────────────────────────────────
-const EMPTY_LINE = () => ({ inventoryItemId: '', quantity: 1, serialNumber: '', assignedTo: '', location: '' });
+const EMPTY_LINE = () => ({ inventoryItemId: '', quantity: 1, serialNumber: '', assignedTo: '', location: '', warranty: '', warrantyValue: '', warrantyUnit: 'Year/s' });
 
 const AssetForm = ({ onClose, onSuccess }) => {
   const { inventory, deployAsset } = useWMS();
@@ -318,11 +409,10 @@ const AssetForm = ({ onClose, onSuccess }) => {
     jorNumber:        '',
     accountabilitySeq:'',
     transmittalSeq:   '',
-    status:           'In Use',
+    status:           'In Progress',
     purchaseDate:     new Date().toISOString().split('T')[0],
     assignedTo:       '',
     location:         '',
-    warranty:         '',
   });
 
   const [loading,        setLoading]        = useState(false);
@@ -352,10 +442,15 @@ const AssetForm = ({ onClose, onSuccess }) => {
   const getAvailableAssetTags = (id) => {
     const item = getItem(id);
     if (!item) return [];
-    const tags = Array.isArray(item.asset_tags) ? item.asset_tags
-      : (item.asset_tags && typeof item.asset_tags === 'object') ? Object.values(item.asset_tags)
-      : [];
-    return tags.filter(Boolean);
+    let tags = item.asset_tags;
+    // Handle all Supabase JSONB return formats
+    if (!tags) return [];
+    if (typeof tags === 'string') {
+      try { tags = JSON.parse(tags); } catch { return []; }
+    }
+    if (Array.isArray(tags)) return tags.filter(Boolean);
+    if (typeof tags === 'object') return Object.values(tags).filter(Boolean);
+    return [];
   };
 
   const getMaxQty = (id) => getItem(id)?.quantity || 1;
@@ -371,56 +466,49 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
     setConfirmStep(false);
     setLoading(true);
-    const allDeployed = [];
 
     try {
-      for (const line of validLines) {
+      // Build all deploy calls up front, then run in parallel per inventory item
+      const deployPromises = validLines.map(async (line) => {
         const item = getItem(line.inventoryItemId);
-        if (!item) continue;
+        if (!item) return [];
         const unitPrice = item.unit_price || item.unitPrice || 0;
         const assetTags = getAvailableAssetTags(line.inventoryItemId);
         const qty = Math.max(1, Math.min(line.quantity, item.quantity));
 
-        for (let i = 0; i < qty; i++) {
-          const inventoryAssetTag = assetTags[i] || '';
-          // Build QR payload matching inventory QR format
-          const inventoryQrCode = inventoryAssetTag ? [
-            '== GOLI ICT INVENTORY ==',
-            `Item Code : ${item.item_code || ''}`,
-            `Asset Tag : ${inventoryAssetTag}`,
-            `Item      : ${item.description || ''}`,
-            `Category  : ${item.category || ''}`,
-            `Location  : ${item.location || ''}`,
-            '========================',
-          ].join('\n') : null;
+        // Build payload for each unit, then fire ONE deployAsset call (internally uses Promise.all)
+        // Pass the first asset tag as inventoryAssetTag — service uses it as asset_id
+        // For qty > 1, pass assetTags array via inventoryAssetTags so service assigns one per unit
+        const inventoryAssetTag = assetTags[0] || '';
 
-          const result = await deployAsset({
-            inventoryItemId:  line.inventoryItemId,
-            quantity:         1,
-            description:      item.description,
-            category:         item.category,
-            purchasePrice:    unitPrice,
-            poNumber:         sharedData.poNumber,
-            prNumber:         sharedData.prNumber,
-            jorNumber:        sharedData.jorNumber,
-            accountabilitySeq:sharedData.accountabilitySeq,
-            transmittalSeq:   sharedData.transmittalSeq,
-            serialNumber:     line.serialNumber || '',
-            assignedTo:       line.assignedTo || sharedData.assignedTo,
-            location:         line.location  || sharedData.location,
-            status:           sharedData.status,
-            purchaseDate:     sharedData.purchaseDate,
-            warranty:         sharedData.warranty,
-            inventoryAssetTag,
-            inventoryQrCode,
-          });
+        const result = await deployAsset({
+          inventoryItemId:   line.inventoryItemId,
+          quantity:          qty,
+          description:       item.description,
+          category:          item.category,
+          purchasePrice:     unitPrice,
+          poNumber:          sharedData.poNumber,
+          prNumber:          sharedData.prNumber,
+          jorNumber:         sharedData.jorNumber,
+          accountabilitySeq: sharedData.accountabilitySeq,
+          transmittalSeq:    sharedData.transmittalSeq,
+          serialNumber:      line.serialNumber || '',
+          assignedTo:        line.assignedTo || sharedData.assignedTo,
+          location:          line.location || sharedData.location,
+          status:            sharedData.status,
+          purchaseDate:      sharedData.purchaseDate,
+          warranty:          line.warrantyValue ? `${line.warrantyValue} ${line.warrantyUnit}` : '',
+          inventoryAssetTag,
+          inventoryAssetTags: assetTags, // pass full array for per-unit ID assignment
+        });
 
-          if (result) {
-            const created = Array.isArray(result) ? result : [result];
-            allDeployed.push(...created);
-          }
-        }
-      }
+        if (!result) return [];
+        return Array.isArray(result) ? result : [result];
+      });
+
+      // Run all line deployments in parallel
+      const results = await Promise.all(deployPromises);
+      const allDeployed = results.flat();
 
       if (allDeployed.length > 0) {
         setDeployedAssets(allDeployed);
@@ -496,9 +584,11 @@ const AssetForm = ({ onClose, onSuccess }) => {
         <div className="grid grid-cols-2 gap-3">
           <div><label className={lbl}>Status <span className="text-red-500">*</span></label>
             <select name="status" value={sharedData.status} onChange={handleSharedChange} required className={inp}>
-              <option value="In Use">In Use</option>
-              <option value="Available">Available</option>
-              <option value="Maintenance">Maintenance</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Deployed">Deployed</option>
+              <option value="For Delivery">For Delivery</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Completed">Completed</option>
             </select></div>
           <div><label className={lbl}>Deployment Date <span className="text-red-500">*</span></label>
             <input type="date" name="purchaseDate" value={sharedData.purchaseDate} onChange={handleSharedChange}
@@ -509,9 +599,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
           <div><label className={lbl}>Default Location</label>
             <input type="text" name="location" value={sharedData.location} onChange={handleSharedChange}
               placeholder="e.g. Office 3F" className={inp} /></div>
-          <div className="col-span-2"><label className={lbl}>Warranty</label>
-            <input type="text" name="warranty" value={sharedData.warranty} onChange={handleSharedChange}
-              placeholder="e.g. 3 years" className={inp} /></div>
+
         </div>
       </div>
 
@@ -616,6 +704,22 @@ const AssetForm = ({ onClose, onSuccess }) => {
                           <input type="text" value={line.location}
                             onChange={e => updateLine(i, 'location', e.target.value)}
                             placeholder={sharedData.location || 'Location'} className={inp} /></div>
+                        <div>
+                          <label className={lbl}>Warranty</label>
+                          <div className="flex gap-1.5">
+                            <input type="number" min="0" value={line.warrantyValue || ''}
+                              onChange={e => updateLine(i, 'warrantyValue', e.target.value)}
+                              placeholder="e.g. 1" className="w-20 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <select value={line.warrantyUnit || 'Year/s'}
+                              onChange={e => updateLine(i, 'warrantyUnit', e.target.value)}
+                              className="flex-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                              <option>Days</option>
+                              <option>Weeks</option>
+                              <option>Months</option>
+                              <option>Year/s</option>
+                            </select>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Stock bar */}

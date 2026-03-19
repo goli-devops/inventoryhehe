@@ -1,18 +1,131 @@
 import React, { useState } from 'react';
+import { useWMS } from '../../context/WMSContext';
 import {
   Hash, Tag, MapPin, User, Shield, Clock,
-  ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle, QrCode
+  ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle,
+  QrCode, Printer, FileText
 } from 'lucide-react';
 import QRCodeDisplay from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 
+
+const loadScript = (src) => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+  const s = document.createElement('script');
+  s.src = src; s.onload = res; s.onerror = rej;
+  document.head.appendChild(s);
+});
+
+const loadScriptDet = (src) => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+  const s = document.createElement('script');
+  s.src = src; s.onload = res; s.onerror = rej;
+  document.head.appendChild(s);
+});
+
+const reprintAccountability = async (asset) => {
+  await loadScriptDet('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScriptDet('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 14;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  doc.setDrawColor(200,0,0); doc.setLineWidth(1.5); doc.line(0,6,W,6); doc.setDrawColor(0,0,0); doc.setLineWidth(0.25);
+  let y = 17;
+  doc.setFont('helvetica','bold'); doc.setFontSize(20);
+  doc.text('ICT DEPARTMENT', W/2, y, { align:'center' }); y += 7;
+  doc.setFontSize(13);
+  doc.text('ACCOUNTABILITY FORM', W/2, y, { align:'center' }); y += 3;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W-44, 13);
+  doc.setFont('helvetica','bold'); doc.setTextColor(200,0,0); doc.setFontSize(14);
+  doc.text(String(asset.accountability_seq || ''), W-38, 13);
+  doc.setTextColor(0,0,0);
+  y += 5;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('Dept.:', M, y); doc.setFont('helvetica','normal');
+  doc.line(M+12, y+0.5, 110, y+0.5);
+  doc.text(asset.jor_number || '', M+13, y-0.5);
+  y += 7;
+  doc.setFont('helvetica','bold'); doc.text('Name:', M, y); doc.setFont('helvetica','normal');
+  doc.line(M+12, y+0.5, 120, y+0.5);
+  doc.text(asset.assigned_to || '', M+13, y-0.5);
+  doc.setFont('helvetica','bold'); doc.text('Position:', 122, y); doc.setFont('helvetica','normal');
+  doc.line(134, y+0.5, W-M, y+0.5);
+  y += 7;
+  doc.setFont('helvetica','bold'); doc.text('Date:', M, y); doc.setFont('helvetica','normal');
+  doc.line(M+11, y+0.5, 80, y+0.5); doc.text(today, M+12, y-0.5);
+  y += 6;
+  const tableRows = [[today, asset.asset_id||'', asset.description||'', '1','','','','']];
+  while (tableRows.length < 10) tableRows.push(['','','','','','','','']);
+  doc.autoTable({
+    startY: y,
+    head: [['DATE','CODE','PARTICULARS','QTY.','F','DATE\nRECEIVED','F','DATE RETURNED/\nTRANSFERED']],
+    body: tableRows,
+    styles: { fontSize:7.5, cellPadding:2, lineColor:[0,0,0], lineWidth:0.25, valign:'middle' },
+    headStyles: { fillColor:[255,255,255], textColor:[0,0,0], fontStyle:'bold', lineWidth:0.3, lineColor:[0,0,0], halign:'center', valign:'middle', minCellHeight:10 },
+    bodyStyles: { minCellHeight:9, lineWidth:0.2, lineColor:[0,0,0] },
+    columnStyles: { 0:{cellWidth:18,halign:'center'}, 1:{cellWidth:22}, 2:{cellWidth:68}, 3:{cellWidth:12,halign:'center'}, 4:{cellWidth:8,halign:'center'}, 5:{cellWidth:22,halign:'center'}, 6:{cellWidth:8,halign:'center'}, 7:{cellWidth:28,halign:'center'} },
+    tableLineColor:[0,0,0], tableLineWidth:0.3, margin:{left:M,right:M},
+  });
+  const fy = doc.lastAutoTable.finalY + 6;
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.text('I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.', M, fy, {maxWidth: W-M*2});
+  const sigY = fy + 18;
+  [{x:M,label:'APPROVED BY:',copy:'Original - Accounting'},{x:83,label:'ISSUED BY:',copy:'Duplicate - Audit'},{x:150,label:'SIGNATURE OF EMPLOYEE',copy:'Triplicate - Personal File'}].forEach(col => {
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text(col.label, col.x, sigY);
+    doc.setFont('helvetica','normal'); doc.line(col.x, sigY+12, col.x+50, sigY+12);
+    doc.setFontSize(7); doc.text(col.copy, col.x, sigY+16);
+  });
+  doc.save(`Accountability_${asset.po_number||asset.asset_id||'form'}.pdf`);
+};
+
+const reprintTransmittal = async (asset) => {
+  await loadScriptDet('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScriptDet('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, M = 20;
+  const today = new Date().toLocaleDateString('en-PH', { month:'long', day:'numeric', year:'numeric' });
+
+  let y = 16;
+  doc.setFont('helvetica','bold'); doc.setFontSize(20);
+  doc.text('CORPORATE-ICT', M, y); y += 8;
+  doc.setFontSize(14); doc.text('Transmittal Slip', M, y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('N\u00ba', W-52, y-1);
+  doc.setFont('helvetica','bold'); doc.setTextColor(200,0,0); doc.setFontSize(13);
+  doc.text(String(asset.transmittal_seq||''), W-44, y);
+  doc.setTextColor(0,0,0); y += 10;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('Date:', W-55, y); doc.line(W-47, y+0.5, W-M, y+0.5); doc.text(today, W-46, y-0.5); y += 8;
+
+  const tableRows = [[asset.description || '', '1']];
+  while (tableRows.length < 10) tableRows.push(['', '']);
+  doc.autoTable({
+    startY: y,
+    head: [['Item Description', 'Quantity']],
+    body: tableRows,
+    styles: { fontSize:9, cellPadding:3.5, lineColor:[0,0,0], lineWidth:0.25 },
+    headStyles: { fillColor:[255,255,255], textColor:[0,0,0], fontStyle:'bold', lineWidth:0.3, lineColor:[0,0,0], halign:'center' },
+    bodyStyles: { minCellHeight:10, lineWidth:0.2, lineColor:[0,0,0] },
+    columnStyles: { 0:{cellWidth:130}, 1:{cellWidth:30, halign:'center'} },
+    tableLineColor:[0,0,0], tableLineWidth:0.3, margin:{left:M, right:M},
+  });
+  const fy = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.line(M, fy, M+42, fy); doc.text('Account', M+10, fy+5);
+  doc.line(W-M-58, fy, W-M, fy); doc.text('Received by/ Date / Time', W-M-58, fy+5);
+  doc.save(`Transmittal_${asset.po_number||asset.asset_id||'slip'}.pdf`);
+};
+
+
 const STATUS_STYLES = {
-  Available:   'bg-green-100 text-green-700',
-  'In Use':    'bg-blue-100 text-blue-700',
-  Maintenance: 'bg-yellow-100 text-yellow-700',
-  Repair:      'bg-orange-100 text-orange-700',
-  Cancelled:   'bg-red-100 text-red-700',
-  Retired:     'bg-gray-100 text-gray-600',
+  'In Progress':  'bg-blue-100 text-blue-700',
+  'Deployed':     'bg-green-100 text-green-700',
+  'For Delivery': 'bg-yellow-100 text-yellow-700',
+  'On Hold':      'bg-orange-100 text-orange-700',
+  'Completed':    'bg-purple-100 text-purple-700',
+  'Cancelled':    'bg-red-100 text-red-700',
 };
 
 const StatusBadge = ({ status }) => (
@@ -47,6 +160,22 @@ const AssetDetails = ({ asset }) => {
   const [tab,         setTab]         = useState('details');
   const [historyPage, setHistoryPage] = useState(1);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [reprinting,  setReprinting]  = useState('');
+  const [refEdit,     setRefEdit]     = useState({
+    po_number:         asset.po_number || '',
+    pr_number:         asset.pr_number || '',
+    jor_number:        asset.jor_number || '',
+    accountability_seq:asset.accountability_seq || '',
+    transmittal_seq:   asset.transmittal_seq || '',
+    status:            asset.status || 'In Progress',
+    location:          asset.location || '',
+    assigned_to:       asset.assigned_to || '',
+    purchase_date:     asset.purchase_date?.split('T')[0] || '',
+    warranty:          asset.warranty || '',
+  });
+  const [refSaving,   setRefSaving]   = useState(false);
+  const [refSaved,    setRefSaved]    = useState(false);
+  const { updateAsset } = useWMS();
 
   if (!asset) return null;
 
@@ -59,7 +188,7 @@ const AssetDetails = ({ asset }) => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {['details', 'history'].map(t => (
+        {['details', 'references', 'history'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
               tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -98,6 +227,26 @@ const AssetDetails = ({ asset }) => {
             <p className="text-sm font-medium text-gray-800">{asset.description}</p>
           </div>
 
+          {/* Reprint buttons */}
+          {(asset.po_number || asset.accountability_seq || asset.transmittal_seq) && (
+            <div className="flex gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={async () => { setReprinting('acc'); await reprintAccountability(asset); setReprinting(''); }}
+                disabled={reprinting === 'acc'}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors"
+              >
+                <Printer size={12} /> {reprinting === 'acc' ? 'Generating…' : 'Accountability Form'}
+              </button>
+              <button
+                onClick={async () => { setReprinting('trs'); await reprintTransmittal(asset); setReprinting(''); }}
+                disabled={reprinting === 'trs'}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-xs font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                <FileText size={12} /> {reprinting === 'trs' ? 'Generating…' : 'Transmittal Slip'}
+              </button>
+            </div>
+          )}
+
           {/* QR Code */}
           {(asset.is_tagged || asset.isTagged) && (
             <div className="pt-3 border-t border-gray-100">
@@ -125,6 +274,99 @@ const AssetDetails = ({ asset }) => {
 
       {showQRModal && (
         <QRModal asset={asset} onClose={() => setShowQRModal(false)} />
+      )}
+
+      {/* ── References Tab ── */}
+      {tab === 'references' && (
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference Numbers</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: 'po_number',          label: 'PO Number' },
+                { key: 'pr_number',          label: 'PR Number' },
+                { key: 'jor_number',         label: 'JOR Number' },
+                { key: 'accountability_seq', label: 'Accountability Seq. No.' },
+                { key: 'transmittal_seq',    label: 'Transmittal Seq. No.' },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                  <input type="text" value={refEdit[key]}
+                    onChange={e => setRefEdit(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">Deployment Details</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+                <select value={refEdit.status}
+                  onChange={e => setRefEdit(p => ({ ...p, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {['In Progress','Deployed','For Delivery','On Hold','Completed','Cancelled'].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Deployment Date</label>
+                <input type="date" value={refEdit.purchase_date}
+                  onChange={e => setRefEdit(p => ({ ...p, purchase_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
+                <input type="text" value={refEdit.assigned_to}
+                  onChange={e => setRefEdit(p => ({ ...p, assigned_to: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
+                <input type="text" value={refEdit.location}
+                  onChange={e => setRefEdit(p => ({ ...p, location: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Warranty</label>
+                <input type="text" value={refEdit.warranty}
+                  onChange={e => setRefEdit(p => ({ ...p, warranty: e.target.value }))}
+                  placeholder="e.g. 1 Year/s"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+              {refSaved && <p className="text-xs text-green-600 font-medium">Saved successfully!</p>}
+              {!refSaved && <span />}
+              <button
+                onClick={async () => {
+                  setRefSaving(true);
+                  await updateAsset(asset.id, {
+                    po_number:          refEdit.po_number,
+                    pr_number:          refEdit.pr_number,
+                    jor_number:         refEdit.jor_number,
+                    accountability_seq: refEdit.accountability_seq,
+                    transmittal_seq:    refEdit.transmittal_seq,
+                    status:             refEdit.status,
+                    location:           refEdit.location,
+                    assigned_to:        refEdit.assigned_to,
+                    purchase_date:      refEdit.purchase_date,
+                    warranty:           refEdit.warranty,
+                  });
+                  setRefSaving(false);
+                  setRefSaved(true);
+                  setTimeout(() => setRefSaved(false), 3000);
+                }}
+                disabled={refSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors"
+              >
+                {refSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── History Tab ── */}

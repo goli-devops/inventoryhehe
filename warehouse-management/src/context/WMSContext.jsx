@@ -210,24 +210,39 @@ export const WMSProvider = ({ children }) => {
   // Creates `quantity` individual asset records (each with unique ID + QR),
   // then deducts that quantity from the inventory item in one call.
   const deployAsset = useCallback(async (assetData) => {
-    const { inventoryItemId, quantity = 1, ...rest } = assetData;
+    const { inventoryItemId, quantity = 1, inventoryAssetTags = [], ...rest } = assetData;
     const qty = Math.max(1, parseInt(quantity) || 1);
 
-    // Step 1 — create N asset records in parallel
-    const createPromises = Array.from({ length: qty }, (_, i) =>
-      AssetService.create({
+    // Step 1 — create N asset records sequentially to avoid race conditions
+    // (parallel Promise.all with same-ms timestamps causes duplicate asset_id)
+    const allCreated = [];
+    for (let i = 0; i < qty; i++) {
+      // Use indexed tag; if none available generate a truly unique ID with index suffix
+      const rawTag = inventoryAssetTags[i] || rest.inventoryAssetTag || '';
+      const tag = rawTag.trim()?.substring(0, 90) || '';
+      // For no-tag units, pass a unique seed so generateAssetID adds an index
+      const qrCode = tag ? [
+        '== GOLI ICT INVENTORY ==',
+        `Asset Tag : ${tag}`,
+        `Item      : ${rest.description || ''}`,
+        `Category  : ${rest.category || ''}`,
+        `Location  : ${rest.location || ''}`,
+        '========================',
+      ].join('\n') : rest.inventoryQrCode || null;
+      const created = await AssetService.create({
         ...rest,
-        // Append index to serial number for bulk deploys so each is unique
         serialNumber: qty > 1 && rest.serialNumber
           ? `${rest.serialNumber}-${String(i + 1).padStart(2, '0')}`
           : rest.serialNumber,
+        inventoryAssetTag: tag,
+        inventoryQrCode: qrCode,
+        unitIndex: i, // used to ensure unique ID when no asset tag
         inventoryItemId,
         createdBy: currentUser.name,
-      })
-    );
+      });
+      if (created) allCreated.push(created);
+    }
 
-    const results = await Promise.all(createPromises);
-    const allCreated = results.filter(Boolean);
     if (allCreated.length === 0) return null;
 
     // Step 2 — deduct qty from inventory in one call
@@ -245,9 +260,8 @@ export const WMSProvider = ({ children }) => {
       }
     }
 
-    // Step 3 — refresh assets state
-    const allAssets = await AssetService.getAll();
-    if (Array.isArray(allAssets)) setAssets(allAssets);
+    // Step 3 — append new assets to state directly (no full refetch needed)
+    setAssets(prev => [...(Array.isArray(prev) ? prev : []), ...allCreated]);
 
     return allCreated;
   }, [currentUser.name]);
@@ -288,16 +302,19 @@ export const WMSProvider = ({ children }) => {
   const cancelAsset = async (id, reason) => {
     const result = await AssetService.cancel(id, reason, currentUser.name);
     if (!result) return false;
-    // Return quantity to inventory if linked
+    // Return quantity to inventory if linked — adjust qty optimistically, skip full refetch
     if (result.inventoryItemId) {
       await InventoryService.adjustQuantity(result.inventoryItemId, 1, 'Returned from Cancelled Asset', currentUser.name);
-      const updated = await InventoryService.getAll();
-      if (Array.isArray(updated)) setInventory(updated);
+      setInventory(prev => prev.map(item =>
+        item.id === result.inventoryItemId
+          ? { ...item, quantity: (item.quantity || 0) + 1 }
+          : item
+      ));
     }
-    // Update asset in state
+    // Update asset in state instantly
     setAssets(prev => prev.map(a => a.id === id ? result.asset : a));
-    // Write audit log
-    await AssetAuditLogService.log({
+    // Write audit log (fire-and-forget — don't await)
+    AssetAuditLogService.log({
       action:      'Cancelled',
       assetId:     id,
       assetCode:   result.asset?.asset_id || id,
