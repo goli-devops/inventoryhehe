@@ -77,9 +77,10 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
   };
 
   const autoGenerateAll = () => {
-    setAssetTags(Array.from({ length: qty }, (_, i) =>
-      assetTags[i] || genTag(i)
-    ));
+    // Only fill empty slots — don't overwrite existing tags
+    setAssetTags(prev =>
+      Array.from({ length: qty }, (_, i) => prev[i] || genTag(i))
+    );
   };
 
   const buildPayload = (tag, i) => buildInventoryQRPayload(
@@ -244,10 +245,10 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
           {showTags && (
             <div className="p-4 space-y-3 border-t border-blue-100 bg-white">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">Manage asset tags per unit. Reducing quantity removes the last tag(s).</p>
+                <p className="text-xs text-gray-500">Optional — manage asset tags per unit. Items without tags deploy as N/A in Asset Tracking. Reducing quantity removes the last tag(s).</p>
                 <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                  {activeTags.length > 0 && (
-                    <button type="button" onClick={() => printQR(activeTags)}
+                  {activeTags.filter(t => t && t !== 'N/A').length > 0 && (
+                    <button type="button" onClick={() => printQR(activeTags.filter(t => t && t !== 'N/A'))}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors">
                       <Printer size={12} /> Print All QR
                     </button>
@@ -279,16 +280,19 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
                         className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0">
                         <RefreshCw size={13} />
                       </button>
-                      {tag && (
+                      {tag && tag !== 'N/A' && (
                         <div className="flex-shrink-0">
                           <QRCodeDisplay value={buildPayload(tag, i)} size={48} />
                         </div>
                       )}
-                      {tag && (
+                      {tag && tag !== 'N/A' && (
                         <button type="button" onClick={() => printQR([tag])}
                           className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0" title="Print this QR">
                           <Printer size={13} />
                         </button>
+                      )}
+                      {(!tag || tag === 'N/A') && (
+                        <span className="text-xs text-gray-400 flex-shrink-0 px-1">N/A</span>
                       )}
                     </div>
                   );

@@ -19,11 +19,13 @@ const FIELD_LABELS = {
 };
 
 const AssetService = {
-  generateAssetID(category) {
+  generateAssetID(category, unitIndex = 0) {
+    // Use high-resolution timestamp + random + unitIndex for guaranteed uniqueness
     const categoryCode = (category || 'UNK').substring(0, 3).toUpperCase();
-    const timestamp    = Date.now().toString().slice(-6);
-    const random       = Math.floor(Math.random() * 900 + 100);
-    return `${categoryCode}-${timestamp}-${random}`; // e.g. ELC-123456-456 (max ~16 chars)
+    const ts   = Date.now().toString(36).toUpperCase().slice(-5); // base36 timestamp
+    const rand = Math.floor(Math.random() * 46656).toString(36).toUpperCase().padStart(3, '0');
+    const idx  = unitIndex.toString(36).toUpperCase().padStart(2, '0');
+    return `${categoryCode}-${ts}-${rand}${idx}`; // e.g. PRI-K3X2A-Z4F01 — guaranteed unique
   },
 
   generateQRCode(assetID) {
@@ -37,33 +39,39 @@ const AssetService = {
 
   async create(assetData) {
     try {
-      // Use inventory asset tag as asset_id; display N/A in UI but store unique ID in DB
       const tag = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
-      // Generate unique fallback using unitIndex to prevent duplicate keys in parallel deploys
-      const fallbackID = this.generateAssetID(assetData.category) +
-        (assetData.unitIndex != null ? `-${assetData.unitIndex}` : '');
-      const assetID = tag || fallbackID;
-      const qrData  = this.generateQRCode(assetID);
+      const hasTag = !!tag;
+
+      // If inventory item has an asset tag → use it as asset_id and generate QR
+      // If no tag → use a unique generated ID for DB uniqueness, but mark as NOT tagged
+      const assetID = hasTag
+        ? tag
+        : this.generateAssetID(assetData.category, assetData.unitIndex ?? 0);
+      const qrData = hasTag ? this.generateQRCode(assetID) : { qr_code: null, qr_url: null };
+
       const newAsset = {
-        asset_id: assetID, description: assetData.description,
-        category: assetData.category,
-        po_number: assetData.poNumber || '',
-        pr_number: assetData.prNumber || '',
-        jor_number: assetData.jorNumber || '',
-        serial_number: assetData.serialNumber || '',
+        asset_id:           assetID,
+        description:        assetData.description,
+        category:           assetData.category,
+        po_number:          assetData.poNumber          || '',
+        pr_number:          assetData.prNumber          || '',
+        jor_number:         assetData.jorNumber         || '',
+        serial_number:      assetData.serialNumber      || '',
         accountability_seq: assetData.accountabilitySeq || '',
-        transmittal_seq: assetData.transmittalSeq || '',
-        inventory_asset_tag: assetData.inventoryAssetTag || '',
-        location: assetData.location || '', assigned_to: assetData.assignedTo || null,
-        status: assetData.status || 'Available',
-        purchase_date: assetData.purchaseDate || new Date().toISOString(),
-        purchase_price: assetData.purchasePrice || 0, warranty: assetData.warranty || '',
-        // Use inventory QR payload if provided, otherwise generate from asset ID
-        qr_code: qrData.qr_code, // short reference ID only — full payload built client-side
-        qr_url: qrData.qr_url, is_tagged: true,
-        // inventory_qr_payload stored separately if needed — not in varchar(100) column
-        inventory_item_id: assetData.inventoryItemId || null, created_by: assetData.createdBy,
-        history: [{ action: 'Created', date: new Date().toISOString(), user: assetData.createdBy, status: assetData.status || 'Available' }],
+        transmittal_seq:    assetData.transmittalSeq    || '',
+        inventory_asset_tag:hasTag ? tag : '',   // empty = no tag
+        location:           assetData.location          || '',
+        assigned_to:        assetData.assignedTo        || null,
+        status:             assetData.status            || 'In Progress',
+        purchase_date:      assetData.purchaseDate      || new Date().toISOString(),
+        purchase_price:     assetData.purchasePrice     || 0,
+        warranty:           assetData.warranty          || '',
+        qr_code:            qrData.qr_code,   // null when no tag → no QR in UI
+        qr_url:             qrData.qr_url,
+        is_tagged:          hasTag,            // false when no inventory asset tag
+        inventory_item_id:  assetData.inventoryItemId   || null,
+        created_by:         assetData.createdBy,
+        history: [{ action: 'Created', date: new Date().toISOString(), user: assetData.createdBy, status: assetData.status || 'In Progress' }],
       };
       const { data, error } = await supabase.from('assets').insert([newAsset]).select().single();
       if (error) throw error;

@@ -1,9 +1,47 @@
 import React, { useState, useCallback } from 'react';
-import { Hash, QrCode, RefreshCw, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { Hash, QrCode, RefreshCw, ChevronDown, ChevronUp, Package, Printer } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
 import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
+
+// ── Print asset tag QR codes ──────────────────────────────────────────────────
+const printAllAssetTags = (formData, assetTags, buildPayload) => {
+  const validTags = assetTags.filter(Boolean);
+  if (validTags.length === 0) { alert('No asset tags to print. Add tags first.'); return; }
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) { alert('Please allow pop-ups to print.'); return; }
+
+  const cards = validTags.map((tag, i) => `
+    <div class="qr-card">
+      <div id="qr_${i}"></div>
+      <div class="qr-info">
+        <p class="item-name">${formData.description || ''}</p>
+        <p class="tag-num">Asset Tag: <strong>${tag}</strong></p>
+        <p class="unit-num">Unit ${i + 1} of ${validTags.length}</p>
+        <p class="category">${formData.category || ''}</p>
+      </div>
+    </div>`).join('');
+
+  const scripts = validTags.map((tag, i) =>
+    `new QRCode(document.getElementById('qr_${i}'), { text: ${JSON.stringify(buildPayload({ item_code: '', description: formData.description, category: formData.category, location: formData.location }, tag, i))}, width: 96, height: 96 });`
+  ).join('\n');
+
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>Asset Tags</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial;padding:16px}h2{font-size:13px;margin-bottom:10px;color:#333}
+.grid{display:flex;flex-wrap:wrap;gap:10px}
+.qr-card{display:flex;align-items:center;gap:10px;border:1px solid #ddd;border-radius:8px;padding:10px;width:260px}
+.item-name{font-size:11px;font-weight:700;margin-bottom:2px;word-break:break-word}
+.tag-num{font-size:11px;color:#333}.unit-num{font-size:10px;color:#666;margin-top:2px}.category{font-size:9px;color:#999;margin-top:2px}
+@media print{body{padding:4px}}</style></head>
+<body><h2>Asset Tags: ${formData.description} (${validTags.length} unit${validTags.length !== 1 ? 's' : ''})</h2>
+<div class="grid">${cards}</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>window.addEventListener('load',()=>{setTimeout(()=>{${scripts};setTimeout(()=>window.print(),600)},300)})</script>
+</body></html>`);
+  printWindow.document.close();
+};
+
 
 // buildInventoryQRPayload imported from QRCodeDisplay
 
@@ -48,16 +86,20 @@ const AssetTagRow = ({ index, tag, showQR, formData, onTagChange, onToggleQR }) 
         >
           <RefreshCw size={14} />
         </button>
-        <button
-          type="button"
-          onClick={() => onToggleQR(index)}
-          title={showQR ? 'Hide QR' : 'Generate QR'}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
-            showQR ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-          }`}
-        >
-          <QrCode size={13} /> {showQR ? 'Hide QR' : 'QR'}
-        </button>
+        {tag ? (
+          <button
+            type="button"
+            onClick={() => onToggleQR(index)}
+            title={showQR ? 'Hide QR' : 'Generate QR'}
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+              showQR ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+            }`}
+          >
+            <QrCode size={13} /> {showQR ? 'Hide QR' : 'QR'}
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400 px-2 flex-shrink-0">No tag</span>
+        )}
       </div>
 
       {showQR && tag && (
@@ -73,7 +115,7 @@ const AssetTagRow = ({ index, tag, showQR, formData, onTagChange, onToggleQR }) 
         </div>
       )}
       {showQR && !tag && (
-        <p className="text-xs text-gray-400 pl-14">Enter an asset tag to generate the QR code.</p>
+        <p className="text-xs text-orange-400 pl-14">No asset tag — QR code will not be generated for this unit.</p>
       )}
     </div>
   );
@@ -85,7 +127,6 @@ const InventoryForm = ({ onClose, onSuccess }) => {
   const { categories, units } = useSettings();
 
   const [formData, setFormData] = useState({
-    itemCode:      '',
     description:   '',
     category:      '',
     quantity:      '',
@@ -113,7 +154,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
       const dup = (inventory || []).find(
         i => i.description?.toLowerCase().trim() === value.toLowerCase().trim()
       );
-      setDescError(dup ? `An item with this description already exists: "${dup.description}" (${dup.item_code})` : '');
+      setDescError(dup ? `An item with this description already exists: "${dup.description}"` : '');
     }
   };
 
@@ -160,13 +201,14 @@ const InventoryForm = ({ onClose, onSuccess }) => {
         i => i.description?.toLowerCase().trim() === formData.description.toLowerCase().trim()
       );
       if (dup) {
-        setDescError(`An item with this description already exists: "${dup.description}" (${dup.item_code})`);
+        setDescError(`An item with this description already exists: "${dup.description}"`);
         setLoading(false);
         return;
       }
       // Attach asset tags to item data so service can store them
       const result = await createInventoryItem({
         ...formData,
+        // itemCode not passed — service uses first assetTag or generates unique code
         assetTags: assetTags.filter(Boolean),
       });
       if (result) { onSuccess?.(result); onClose(); }
@@ -185,27 +227,6 @@ const InventoryForm = ({ onClose, onSuccess }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
-
-        {/* Asset Tag (replaces Item Code) */}
-        <div>
-          <label className={labelCls}>
-            Asset Tag <span className="text-xs font-normal text-gray-400">(numeric)</span>
-            <span className="text-red-500 ml-1">*</span>
-          </label>
-          <div className="relative">
-            <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              inputMode="numeric"
-              name="itemCode"
-              value={formData.itemCode}
-              onChange={e => setFormData(prev => ({ ...prev, itemCode: e.target.value.replace(/\D/g, '') }))}
-              required
-              placeholder="e.g. 10010001"
-              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
 
         {/* Category */}
         <div>
@@ -296,7 +317,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
           >
             <div className="flex items-center gap-2">
               <QrCode size={16} />
-              <span>Asset Tags &amp; QR Codes</span>
+              <span>Asset Tags &amp; QR Codes <span className="text-xs font-normal opacity-70">(optional)</span></span>
               <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full">
                 {qty} unit{qty !== 1 ? 's' : ''}
               </span>
@@ -313,16 +334,27 @@ const InventoryForm = ({ onClose, onSuccess }) => {
             <div className="p-4 space-y-3 border-t border-blue-100 bg-white">
               {/* Auto-generate all */}
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">
-                  Assign a unique numeric asset tag to each unit. Optionally generate a QR code per unit.
+<p className="text-xs text-gray-500">
+                  Optional — assign a unique numeric asset tag per unit to generate QR codes.
+                  Items without tags will show as N/A in Asset Tracking.
                 </p>
-                <button
-                  type="button"
-                  onClick={autoGenerateAllTags}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors flex-shrink-0 ml-3"
-                >
-                  <RefreshCw size={12} /> Auto-tag All
-                </button>
+                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => printAllAssetTags(formData, assetTags, buildInventoryQRPayload)}
+                    disabled={!assetTags.some(Boolean)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-xs font-medium rounded-lg hover:bg-green-800 disabled:opacity-40 transition-colors"
+                  >
+                    <Printer size={12} /> Print Asset Tags
+                  </button>
+                  <button
+                    type="button"
+                    onClick={autoGenerateAllTags}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
+                  >
+                    <RefreshCw size={12} /> Auto-tag All
+                  </button>
+                </div>
               </div>
 
               {/* Per-unit rows */}

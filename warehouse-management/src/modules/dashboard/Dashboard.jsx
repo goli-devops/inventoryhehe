@@ -33,7 +33,7 @@ const EVENT_TYPES = [
   { value: 'task',     label: 'Task',     color: 'bg-blue-500',   dot: 'bg-blue-500'   },
   { value: 'reminder', label: 'Reminder', color: 'bg-orange-500', dot: 'bg-orange-500' },
   { value: 'deadline', label: 'Deadline', color: 'bg-red-500',    dot: 'bg-red-500'    },
-  { value: 'delivery',  label: 'Delivery',  color: 'bg-purple-500', dot: 'bg-purple-500' },
+  { value: 'meeting',  label: 'Meeting',  color: 'bg-purple-500', dot: 'bg-purple-500' },
   { value: 'other',    label: 'Other',    color: 'bg-gray-400',   dot: 'bg-gray-400'   },
 ];
 const typeConfig = (type) => EVENT_TYPES.find(t => t.value === type) || EVENT_TYPES[4];

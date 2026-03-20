@@ -392,7 +392,7 @@ const EMPTY_FILTERS = { assetId: '', category: '', status: '', assignedTo: '', l
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 const Assets = () => {
-  const { assets: rawAssets, deleteAsset, cancelAsset, getStats, loading } = useWMS();
+  const { assets: rawAssets, deleteAsset, cancelAsset, getStats, loading, updateAsset } = useWMS();
   const { categories } = useSettings();
   const assets = rawAssets ?? [];
   const stats  = getStats();
@@ -648,7 +648,7 @@ const Assets = () => {
                         : <Square size={16} />}
                     </button>
                   </th>
-                  {['Asset ID (Tag)','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
+                  {['Asset Tag','Description','Category','Serial No.','Location','Assigned To','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -718,17 +718,17 @@ const Assets = () => {
                           </td>
                         </tr>
                         {/* Asset rows within the group */}
-                        {!collapsed && groupAssets.map(asset => (
-                          <tr key={asset.id} className={`hover:bg-gray-50 transition-colors border-l-4 ${selectedIds.has(asset.id) ? 'bg-blue-50 border-blue-400' : 'border-transparent'}`}>
+                        {!collapsed && groupAssets.map((asset, i) => (
+                          <tr key={`${poKey}-${asset.id || asset.asset_id}-${i}`} className={`hover:bg-gray-50 transition-colors border-l-4 ${selectedIds.has(asset.id) ? 'bg-blue-50 border-blue-400' : 'border-transparent'}`}>
                             <td className="px-4 py-3">
                               <button onClick={() => toggleSelect(asset.id)} className="text-gray-400 hover:text-blue-600">
                                 {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
                               </button>
                             </td>
-                            <td className="px-4 py-3 text-sm font-semibold text-blue-700 whitespace-nowrap">
-                              {asset.inventory_asset_tag?.trim()
-                                ? asset.inventory_asset_tag
-                                : <span className="text-gray-400 font-normal">N/A</span>}
+                            <td className="px-4 py-3 text-sm font-semibold whitespace-nowrap">
+                              {(asset.is_tagged || asset.isTagged) && asset.inventory_asset_tag?.trim()
+                                ? <span className="text-blue-700">{asset.inventory_asset_tag}</span>
+                                : <span className="text-gray-400 font-normal text-xs">N/A</span>}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-800 max-w-48 truncate">{asset.description}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{asset.category}</td>
@@ -783,7 +783,7 @@ const Assets = () => {
         </Modal>
 
         <Modal isOpen={!!viewAsset} onClose={() => setViewAsset(null)} title="Asset Details" size="lg">
-          <AssetDetails asset={viewAsset} />
+          <AssetDetails asset={viewAsset} onUpdate={updateAsset} />
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
             <Button variant="outline" onClick={() => setViewAsset(null)}>Close</Button>
             {viewAsset?.status !== 'Cancelled' && (
@@ -829,7 +829,7 @@ const Assets = () => {
 
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
-          </div>
+        </div>
       </div>}
     </div>
   );

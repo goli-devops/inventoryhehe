@@ -32,9 +32,11 @@ const InfoRow = ({ icon: Icon, label, value }) => {
 
 // Match PR Details entryMeta exactly
 const entryMeta = (entry) => {
-  if (entry.action === 'Created')       return { icon: PlusCircle,  color: 'text-green-500',  bg: 'bg-green-50 border-green-200'   };
-  if (entry.field  === 'Status')        return { icon: CheckCircle, color: 'text-blue-500',   bg: 'bg-blue-50 border-blue-200'     };
-  return                                       { icon: Edit3,        color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200' };
+  if (entry.action === 'Created')                   return { icon: PlusCircle,  color: 'text-green-500',  bg: 'bg-green-50 border-green-200'   };
+  if (entry.action?.includes('Deployed'))           return { icon: Tag,         color: 'text-purple-600', bg: 'bg-purple-50 border-purple-200' };
+  if (entry.action?.includes('Returned'))           return { icon: Tag,         color: 'text-blue-600',   bg: 'bg-blue-50 border-blue-200'     };
+  if (entry.field  === 'Status')                    return { icon: CheckCircle, color: 'text-blue-500',   bg: 'bg-blue-50 border-blue-200'     };
+  return                                                   { icon: Edit3,        color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200' };
 };
 
 const HISTORY_PAGE_SIZE = 5;
@@ -129,6 +131,7 @@ const InventoryDetails = ({ item }) => {
   })();
   const totalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
   const pagedHistory = history.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
+  
 
   return (
     <div className="space-y-4">
@@ -215,7 +218,7 @@ const InventoryDetails = ({ item }) => {
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <InfoRow icon={Hash}    label="Item Code"   value={item.item_code || item.itemCode} />
+            <InfoRow icon={Hash}    label="Asset Tag"   value={item.item_code === 'N/A' || !item.item_code ? 'N/A (no tag)' : (item.item_code || item.itemCode)} />
             <InfoRow icon={Package} label="Category"    value={item.category} />
             <InfoRow icon={User}    label="Created By"  value={item.created_by} />
             <InfoRow icon={User}    label="Supplier"    value={item.supplier} />
@@ -278,6 +281,30 @@ const InventoryDetails = ({ item }) => {
                             <div>
                               {entry.action === 'Created' ? (
                                 <p className="font-semibold text-gray-800">{entry.details || 'Inventory item created'}</p>
+                              ) : entry.assetTags?.length > 0 ? (
+                                <div>
+                                  <p className="font-semibold text-gray-800 mb-1">
+                                    {entry.action} — Qty: {Math.abs(entry.adjustment || 0)}
+                                    <span className="ml-2 text-xs font-normal text-gray-500">
+                                      {entry.previousQuantity} → {entry.newQuantity}
+                                    </span>
+                                  </p>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <span className="text-xs text-gray-500">Asset Tags used:</span>
+                                    {entry.assetTags.map((tag, ti) => (
+                                      <span key={ti} className="px-1.5 py-0.5 bg-white border border-purple-200 rounded text-xs font-mono font-semibold text-purple-700">
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : entry.adjustment !== undefined ? (
+                                <p className="font-semibold text-gray-800">
+                                  {entry.action}
+                                  <span className="ml-2 text-xs font-normal text-gray-500">
+                                    Qty: {entry.previousQuantity} → {entry.newQuantity}
+                                  </span>
+                                </p>
                               ) : entry.from !== undefined && entry.to !== undefined ? (
                                 <div>
                                   <p className="font-semibold text-gray-800 mb-1">

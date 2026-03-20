@@ -11,9 +11,11 @@ const InventoryService = {
   // Create new Inventory Item
   async create(itemData) {
     try {
-      const itemCode = itemData.itemCode?.trim()
-        ? itemData.itemCode.trim()
-        : this.generateItemCode(itemData.category);
+      // item_code must be unique — use first asset tag if available,
+      // otherwise generate a unique code (never use 'N/A' which would collide)
+      const firstTag = (itemData.assetTags || [])[0]?.trim();
+      const providedCode = itemData.itemCode?.trim();
+      const itemCode = firstTag || providedCode || this.generateItemCode(itemData.category);
       const quantity = itemData.quantity || 0;
       
       const newItem = {
@@ -183,35 +185,66 @@ const InventoryService = {
   },
 
   // Adjust Quantity (Receive/Issue/Transfer)
-  async adjustQuantity(id, adjustment, type, user) {
+  async adjustQuantity(id, adjustment, type, user, deployedTags = []) {
     try {
       const item = await this.getById(id);
       if (!item) return null;
 
       const newQuantity = item.quantity + adjustment;
-      
+
       let status = 'In Stock';
       if (newQuantity === 0) status = 'Out of Stock';
       else if (newQuantity <= item.min_stock_level) status = 'Low Stock';
 
-      const updatedHistory = [
-        ...(item.history || []),
-        {
-          action: type,
-          date: new Date().toISOString(),
-          user: user,
-          adjustment: adjustment,
-          previousQuantity: item.quantity,
-          newQuantity: newQuantity
-        }
-      ];
+      // Remove deployed asset tags from the inventory asset_tags array
+      let existingTags = [];
+      if (Array.isArray(item.asset_tags)) existingTags = item.asset_tags;
+      else if (typeof item.asset_tags === 'string') {
+        try { existingTags = JSON.parse(item.asset_tags) || []; } catch { existingTags = []; }
+      } else if (item.asset_tags && typeof item.asset_tags === 'object') {
+        existingTags = Object.values(item.asset_tags);
+      }
+
+      // For deployments (negative adjustment): remove the specific deployed tags
+      let updatedTags = [...existingTags];
+      if (adjustment < 0 && deployedTags.length > 0) {
+        deployedTags.forEach(tag => {
+          const idx = updatedTags.indexOf(tag);
+          if (idx !== -1) updatedTags.splice(idx, 1);
+        });
+      }
+      // For returns (positive adjustment): add the tag back if provided
+      if (adjustment > 0 && deployedTags.length > 0) {
+        deployedTags.forEach(tag => {
+          if (tag && !updatedTags.includes(tag)) updatedTags.push(tag);
+        });
+      }
+
+      const historyEntry = {
+        action: type,
+        date: new Date().toISOString(),
+        user: user,
+        adjustment: adjustment,
+        previousQuantity: item.quantity,
+        newQuantity: newQuantity,
+      };
+      // Record which asset tags were deployed/returned
+      if (deployedTags.length > 0) {
+        historyEntry.assetTags = deployedTags;
+        historyEntry.details = adjustment < 0
+          ? `Deployed: ${deployedTags.join(', ')}`
+          : `Returned: ${deployedTags.join(', ')}`;
+      }
+
+      const updatedHistory = [...(item.history || []), historyEntry];
 
       const { data, error } = await supabase
         .from('inventory')
         .update({
           quantity: newQuantity,
           status: status,
-          history: updatedHistory
+          asset_tags: updatedTags,
+          history: updatedHistory,
         })
         .eq('id', id)
         .select()

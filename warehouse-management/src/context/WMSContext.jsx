@@ -245,13 +245,18 @@ export const WMSProvider = ({ children }) => {
 
     if (allCreated.length === 0) return null;
 
-    // Step 2 — deduct qty from inventory in one call
+    // Step 2 — deduct qty from inventory, passing the specific deployed tags to remove
     if (inventoryItemId) {
+      // Collect the actual asset tags used for these units
+      const deployedTagsList = allCreated
+        .map(a => a.inventory_asset_tag)
+        .filter(Boolean);
       const updatedItem = await InventoryService.adjustQuantity(
         inventoryItemId,
         -qty,
         `Deployed as Asset (x${qty})`,
-        currentUser.name
+        currentUser.name,
+        deployedTagsList
       );
       if (updatedItem) {
         setInventory(prev =>
@@ -304,10 +309,17 @@ export const WMSProvider = ({ children }) => {
     if (!result) return false;
     // Return quantity to inventory if linked — adjust qty optimistically, skip full refetch
     if (result.inventoryItemId) {
-      await InventoryService.adjustQuantity(result.inventoryItemId, 1, 'Returned from Cancelled Asset', currentUser.name);
+      // Pass the asset tag back so inventory restores it in asset_tags array
+      const returnedTag = result.asset?.inventory_asset_tag || '';
+      const updatedItem = await InventoryService.adjustQuantity(
+        result.inventoryItemId, 1,
+        'Returned from Cancelled Asset',
+        currentUser.name,
+        returnedTag ? [returnedTag] : []
+      );
       setInventory(prev => prev.map(item =>
         item.id === result.inventoryItemId
-          ? { ...item, quantity: (item.quantity || 0) + 1 }
+          ? (updatedItem || { ...item, quantity: (item.quantity || 0) + 1 })
           : item
       ));
     }

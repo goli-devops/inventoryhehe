@@ -14,6 +14,21 @@ const loadScript = (src) => new Promise((res, rej) => {
 });
 
 // ── Accountability Form — matches ICT DEPARTMENT ACCOUNTABILITY FORM ──────────
+// ── Load logo as base64 for embedding in PDF ─────────────────────────────────
+const getLogoBase64 = () => new Promise((resolve) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    resolve(canvas.toDataURL('image/png'));
+  };
+  img.onerror = () => resolve(null); // skip logo if unavailable
+  img.src = '/goli_logo.jpg';
+});
+
+// ── Accountability Form ───────────────────────────────────────────────────────
 const printAccountabilityForm = async (deployedAssets, sharedData) => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
@@ -22,129 +37,82 @@ const printAccountabilityForm = async (deployedAssets, sharedData) => {
   const W = 210, M = 14;
   const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  // Red top border line
-  doc.setDrawColor(200, 0, 0); doc.setLineWidth(1.5);
-  doc.line(0, 6, W, 6); doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.25);
+  const logoData = await getLogoBase64();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
 
-  let y = 17;
-  // Header
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
   doc.text('ICT DEPARTMENT', W / 2, y, { align: 'center' }); y += 7;
-  doc.setFontSize(13);
-  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 3;
+  doc.setFontSize(12);
+  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 4;
 
-  // No. top-right (red)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.text('N\u00ba', W - 44, 13);
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(14);
-  doc.text(String(sharedData.accountabilitySeq || ''), W - 38, 13);
+  doc.text('N\u00ba', W - 38, 12);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(sharedData.accountabilitySeq || ''), W - 32, 12);
   doc.setTextColor(0, 0, 0);
 
-  // Dept / Position row (match image: Name___ Dept.___ Position:___)
-  y += 5;
+  y += 4;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  doc.text('Dept.:', M, y);
-  doc.setFont('helvetica', 'normal');
+  doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 110, y + 0.5);
   doc.text(sharedData.jorNumber || '', M + 13, y - 0.5);
-
-  // Name row
   y += 7;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Name:', M, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 120, y + 0.5);
   doc.text(sharedData.assignedTo || '', M + 13, y - 0.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Position:', 122, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold'); doc.text('Position:', 122, y); doc.setFont('helvetica', 'normal');
   doc.line(134, y + 0.5, W - M, y + 0.5);
-
-  // Date row
   y += 7;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Date:', M, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold'); doc.text('Date:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 11, y + 0.5, 80, y + 0.5);
   doc.text(today, M + 12, y - 0.5);
-
   y += 6;
 
-  // Main table: DATE | CODE | PARTICULARS | QTY | F | DATE RECEIVED | F | DATE RETURNED/TRANSFERRED
   const tableRows = deployedAssets.map(a => [
     today,
-    a.asset_id || a.inventory_asset_tag || '',
+    a.inventory_asset_tag?.trim() || 'N/A',
     a.description || '',
     '1',
-    '',
-    '',
-    '',
-    '',
   ]);
-  // Pad to at least 10 rows
-  while (tableRows.length < 10) tableRows.push(['', '', '', '', '', '', '', '']);
+  while (tableRows.length < 10) tableRows.push(['', '', '', '']);
 
   doc.autoTable({
     startY: y,
-    head: [[
-      { content: 'DATE', rowSpan: 1 },
-      { content: 'CODE', rowSpan: 1 },
-      { content: 'PARTICULARS', rowSpan: 1 },
-      { content: 'QTY.', rowSpan: 1 },
-      { content: 'F', rowSpan: 1 },
-      { content: 'DATE\nRECEIVED', rowSpan: 1 },
-      { content: 'F', rowSpan: 1 },
-      { content: 'DATE RETURNED/\nTRANSFERED', rowSpan: 1 },
-    ]],
+    head: [['DATE', 'ASSET TAG', 'PARTICULARS', 'QTY.']],
     body: tableRows,
-    styles: { fontSize: 7.5, cellPadding: 2, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
-    headStyles: {
-      fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold',
-      lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10
-    },
+    styles: { fontSize: 8, cellPadding: 2.5, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10 },
     bodyStyles: { minCellHeight: 9, lineWidth: 0.2, lineColor: [0,0,0] },
     columnStyles: {
-      0: { cellWidth: 18, halign: 'center' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 68 },
-      3: { cellWidth: 12, halign: 'center' },
-      4: { cellWidth: 8,  halign: 'center' },
-      5: { cellWidth: 22, halign: 'center' },
-      6: { cellWidth: 8,  halign: 'center' },
-      7: { cellWidth: 28, halign: 'center' },
+      0: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 116 },
+      3: { cellWidth: 14, halign: 'center' },
     },
     tableLineColor: [0,0,0], tableLineWidth: 0.3,
     margin: { left: M, right: M },
   });
 
   const fy = doc.lastAutoTable.finalY + 6;
-
-  // Undertaking text
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-  doc.text(
-    'I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.',
-    M, fy, { maxWidth: W - M * 2 }
-  );
+  doc.text('I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.', M, fy, { maxWidth: W - M * 2 });
 
-  // Signature block — 3 columns: APPROVED BY / ISSUED BY / SIGNATURE OF EMPLOYEE
   const sigY = fy + 18;
-  const cols = [
-    { x: M,        label: 'APPROVED BY:',           copy: 'Original - Accounting' },
-    { x: 83,       label: 'ISSUED BY:',              copy: 'Duplicate - Audit' },
-    { x: 150,      label: 'SIGNATURE OF EMPLOYEE',   copy: 'Triplicate - Personal File' },
-  ];
-  cols.forEach(col => {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-    doc.text(col.label, col.x, sigY);
-    doc.setFont('helvetica', 'normal');
-    doc.line(col.x, sigY + 12, col.x + 50, sigY + 12);
-    doc.setFontSize(7);
-    doc.text(col.copy, col.x, sigY + 16);
+  [
+    { x: M,   label: 'APPROVED BY:',         copy: 'Original - Accounting' },
+    { x: 83,  label: 'ISSUED BY:',            copy: 'Duplicate - Audit' },
+    { x: 150, label: 'SIGNATURE OF EMPLOYEE', copy: 'Triplicate - Personal File' },
+  ].forEach(col => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text(col.label, col.x, sigY);
+    doc.setFont('helvetica', 'normal'); doc.line(col.x, sigY + 12, col.x + 50, sigY + 12);
+    doc.setFontSize(7); doc.text(col.copy, col.x, sigY + 16);
   });
 
   doc.save(`Accountability_Form_${sharedData.accountabilitySeq || Date.now()}.pdf`);
 };
 
+// ── Transmittal Slip ──────────────────────────────────────────────────────────
 const printTransmittalSlip = async (deployedAssets, sharedData) => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
@@ -153,57 +121,46 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
   const W = 210, M = 20;
   const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  let y = 16;
+  const logoData = await getLogoBase64();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
 
-  // Header — CORPORATE-ICT bold, left-aligned
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
-  doc.text('CORPORATE-ICT',W / 1, y, { align: 'center' });
-
-  // "Transmittal Slip" on second line, center-aligned
-  doc.setFontSize(14);
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text('CORPORATE-ICT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(12);
   doc.text('Transmittal Slip', W / 2, y, { align: 'center' });
-
-  // Transmittal No. upper right (same line as "Transmittal Slip")
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  doc.text('N\u00ba', W - 52, y - 1);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W - 38, y - 1);
   doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
-  doc.text(String(sharedData.transmittalSeq || ''), W - 44, y);
-  doc.setTextColor(0, 0, 0);
-  y += 10;
+  doc.text(String(sharedData.transmittalSeq || ''), W - 32, y);
+  doc.setTextColor(0, 0, 0); y += 10;
 
-  // Date line right-aligned
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
   doc.text('Date:', W - 55, y);
   doc.line(W - 47, y + 0.5, W - M, y + 0.5);
   doc.text(today, W - 46, y - 0.5);
   y += 8;
 
-  // Consolidate assets into unique descriptions + quantities
   const itemMap = {};
   deployedAssets.forEach(a => {
-    const key = a.description || 'Unknown Item';
-    if (!itemMap[key]) itemMap[key] = 0;
-    itemMap[key]++;
+    const key = a.description || 'Unknown';
+    if (!itemMap[key]) itemMap[key] = { qty: 0, tag: a.inventory_asset_tag?.trim() || 'N/A' };
+    itemMap[key].qty++;
   });
-  const uniqueItems = Object.entries(itemMap).map(([desc, qty]) => [desc, qty]);
-
-  // Table: 2 columns — Item Description | Quantity — padded to 10 rows
-  const tableRows = [...uniqueItems];
-  while (tableRows.length < 10) tableRows.push(['', '']);
+  const tableRows = Object.entries(itemMap).map(([desc, v]) => [desc, v.tag, String(v.qty)]);
+  while (tableRows.length < 10) tableRows.push(['', '', '']);
 
   doc.autoTable({
     startY: y,
-    head: [['Item Description', 'Quantity']],
+    head: [['Item Description', 'Asset Tag', 'Qty']],
     body: tableRows,
     styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
-    headStyles: {
-      fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold',
-      lineWidth: 0.3, lineColor: [0,0,0], halign: 'center'
-    },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
     bodyStyles: { minCellHeight: 10, lineWidth: 0.2, lineColor: [0,0,0] },
     columnStyles: {
-      0: { cellWidth: 130 },
-      1: { cellWidth: 30, halign: 'center' },
+      0: { cellWidth: 104 },
+      1: { cellWidth: 44, halign: 'center' },
+      2: { cellWidth: 22, halign: 'center' },
     },
     tableLineColor: [0,0,0], tableLineWidth: 0.3,
     margin: { left: M, right: M },
@@ -211,13 +168,12 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
 
   const fy = doc.lastAutoTable.finalY + 12;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.line(M, fy, M + 42, fy);
-  doc.text('Account', M + 10, fy + 5);
-  doc.line(W - M - 58, fy, W - M, fy);
-  doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
+  doc.line(M, fy, M + 42, fy); doc.text('Account', M + 10, fy + 5);
+  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by and Date/Time', W - M - 58, fy + 5);
 
   doc.save(`Transmittal_Slip_${sharedData.transmittalSeq || Date.now()}.pdf`);
 };
+
 
 // ── Confirmation Step ────────────────────────────────────────────────────────
 const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, onConfirm, onBack, loading }) => {
@@ -285,7 +241,7 @@ const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, o
                   <td className="px-4 py-3 text-xs font-mono text-gray-500">
                     {tags.length > 0
                       ? tags.slice(0, line.quantity).join(', ')
-                      : <span className="text-gray-300 italic">No tags</span>}
+                      : <span className="text-gray-400 italic">N/A — no QR will be generated</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-800">
                     &#8369;{(price * line.quantity).toLocaleString()}
@@ -348,7 +304,7 @@ const SuccessModal = ({ deployedAssets, sharedData, onClose }) => {
             {deployedAssets.length} Asset{deployedAssets.length !== 1 ? 's' : ''} Deployed Successfully
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            {deployedAssets.map(a => a.asset_id).join(', ')}
+            {deployedAssets.map(a => a.inventory_asset_tag || 'N/A').join(', ')}
           </p>
         </div>
       </div>
@@ -442,14 +398,15 @@ const AssetForm = ({ onClose, onSuccess }) => {
   const getAvailableAssetTags = (id) => {
     const item = getItem(id);
     if (!item) return [];
+    // If item has no asset tag (item_code is N/A or blank), return empty
+    if (!item.item_code || item.item_code === 'N/A') return [];
     let tags = item.asset_tags;
-    // Handle all Supabase JSONB return formats
     if (!tags) return [];
     if (typeof tags === 'string') {
       try { tags = JSON.parse(tags); } catch { return []; }
     }
-    if (Array.isArray(tags)) return tags.filter(Boolean);
-    if (typeof tags === 'object') return Object.values(tags).filter(Boolean);
+    if (Array.isArray(tags)) return tags.filter(t => t && t !== 'N/A');
+    if (typeof tags === 'object') return Object.values(tags).filter(t => t && t !== 'N/A');
     return [];
   };
 
@@ -665,15 +622,22 @@ const AssetForm = ({ onClose, onSuccess }) => {
                       </div>
 
                       {/* Asset tags from inventory */}
-                      {tags.length > 0 && (
-                        <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-100 rounded-lg">
-                          <Tag size={13} className="text-green-600 flex-shrink-0" />
-                          <div className="text-xs">
-                            <p className="font-semibold text-green-700">Inventory Asset Tags:</p>
-                            <p className="text-green-600 font-mono">{tags.slice(0, 5).join(', ')}{tags.length > 5 ? ` +${tags.length - 5} more` : ''}</p>
-                          </div>
+                      <div className={`flex items-center gap-2 p-2 border rounded-lg ${tags.length > 0 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-200'}`}>
+                        <Tag size={13} className={tags.length > 0 ? 'text-green-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />
+                        <div className="text-xs">
+                          {tags.length > 0 ? (
+                            <>
+                              <p className="font-semibold text-green-700">Inventory Asset Tags:</p>
+                              <p className="text-green-600 font-mono">{tags.slice(0, 5).join(', ')}{tags.length > 5 ? ` +${tags.length - 5} more` : ''}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-semibold text-gray-500">No Asset Tags</p>
+                              <p className="text-gray-400">Asset ID will show as N/A, no QR generated</p>
+                            </>
+                          )}
                         </div>
-                      )}
+                      </div>
 
                       {/* Per-line fields */}
                       <div className="grid grid-cols-2 gap-3">
