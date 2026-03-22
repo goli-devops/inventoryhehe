@@ -97,7 +97,7 @@ const CancelConfirmModal = ({ asset, onConfirm, onCancel }) => {
         <div>
           <p className="text-sm font-semibold text-red-700">You are about to cancel this asset</p>
           <p className="text-sm text-red-600 mt-0.5">
-            The asset status will be set to Cancelled. If it was deployed from inventory, 1 unit will be returned to stock.
+            The asset status will be set to Cancelled. If it was deployed from inventory, 1 unit should be returned.
           </p>
         </div>
       </div>
@@ -498,11 +498,14 @@ const Assets = () => {
 
   const handleBulkCancelConfirm = async (reason) => {
     if (!bulkCancelQueue?.length) return;
-    // Run all cancellations in parallel
-    const results = await Promise.all(
-      bulkCancelQueue.map(asset => cancelAsset(asset.id, reason))
-    );
-    const failed = results.filter(ok => !ok).length;
+    // Sequential — NOT parallel — to avoid race condition on inventory quantity updates.
+    // Parallel Promise.all causes all cancels to read the same qty before any write completes,
+    // resulting in only one unit being returned to inventory instead of N.
+    let failed = 0;
+    for (const asset of bulkCancelQueue) {
+      const ok = await cancelAsset(asset.id, reason);
+      if (!ok) failed++;
+    }
     if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
     setBulkCancelQueue(null);
     clearSelection();
@@ -551,7 +554,6 @@ const Assets = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
-            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -589,7 +591,7 @@ const Assets = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total Assets',   value: assets.length,       color: 'text-gray-800' },
+            { label: 'Total Deployments',   value: assets.length,       color: 'text-gray-800' },
             { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
             { label: 'Deployed',       value: inUse,               color: 'text-green-600' },
             { label: 'In Progress',    value: maintenance,         color: 'text-blue-600' },
@@ -829,7 +831,7 @@ const Assets = () => {
 
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
-        </div>
+          </div>
       </div>}
     </div>
   );

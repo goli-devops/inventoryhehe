@@ -69,11 +69,21 @@ const printAccountabilityForm = async (deployedAssets, sharedData) => {
   doc.text(today, M + 12, y - 0.5);
   y += 6;
 
-  const tableRows = deployedAssets.map(a => [
+  // Group assets by description — each unique item gets one row
+  // with all its asset tags listed comma-separated
+  const groupedAcc = {};
+  deployedAssets.forEach(a => {
+    const key = a.description || 'Unknown';
+    if (!groupedAcc[key]) groupedAcc[key] = { tags: [], qty: 0 };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') groupedAcc[key].tags.push(tag);
+    groupedAcc[key].qty++;
+  });
+  const tableRows = Object.entries(groupedAcc).map(([desc, v]) => [
     today,
-    a.inventory_asset_tag?.trim() || 'N/A',
-    a.description || '',
-    '1',
+    v.tags.length > 0 ? v.tags.join(', ') : 'N/A',
+    desc,
+    String(v.qty),
   ]);
   while (tableRows.length < 10) tableRows.push(['', '', '', '']);
 
@@ -141,13 +151,20 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
   doc.text(today, W - 46, y - 0.5);
   y += 8;
 
+  // Group by description — collect all asset tags, join with commas
   const itemMap = {};
   deployedAssets.forEach(a => {
     const key = a.description || 'Unknown';
-    if (!itemMap[key]) itemMap[key] = { qty: 0, tag: a.inventory_asset_tag?.trim() || 'N/A' };
+    if (!itemMap[key]) itemMap[key] = { qty: 0, tags: [] };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') itemMap[key].tags.push(tag);
     itemMap[key].qty++;
   });
-  const tableRows = Object.entries(itemMap).map(([desc, v]) => [desc, v.tag, String(v.qty)]);
+  const tableRows = Object.entries(itemMap).map(([desc, v]) => [
+    desc,
+    v.tags.length > 0 ? v.tags.join(', ') : 'N/A',
+    String(v.qty),
+  ]);
   while (tableRows.length < 10) tableRows.push(['', '', '']);
 
   doc.autoTable({
@@ -169,7 +186,7 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
   const fy = doc.lastAutoTable.finalY + 12;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
   doc.line(M, fy, M + 42, fy); doc.text('Account', M + 10, fy + 5);
-  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by and Date/Time', W - M - 58, fy + 5);
+  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
 
   doc.save(`Transmittal_Slip_${sharedData.transmittalSeq || Date.now()}.pdf`);
 };
@@ -372,8 +389,9 @@ const AssetForm = ({ onClose, onSuccess }) => {
   });
 
   const [loading,        setLoading]        = useState(false);
-  const [confirmStep,    setConfirmStep]    = useState(false); // confirmation screen
-  const [deployedAssets, setDeployedAssets] = useState(null); // success state
+  const [confirmStep,    setConfirmStep]    = useState(false);
+  const [deployedAssets, setDeployedAssets] = useState(null);
+  const [deployError,    setDeployError]    = useState(null); // { title, errors[] }
 
   const handleSharedChange = (e) => {
     const { name, value } = e.target;
@@ -387,13 +405,62 @@ const AssetForm = ({ onClose, onSuccess }) => {
     setLines(prev => {
       const updated = [...prev];
       updated[i] = { ...updated[i], [field]: value };
-      // Reset quantity when item changes
-      if (field === 'inventoryItemId') updated[i].quantity = 1;
+      // Reset quantity to 1 when item changes
+      if (field === 'inventoryItemId') {
+        updated[i].quantity = 1;
+      }
+      // Clamp quantity: never exceed available stock considering other lines
+      if (field === 'quantity' || field === 'inventoryItemId') {
+        const itemId = updated[i].inventoryItemId;
+        if (itemId) {
+          const invItem = inventory.find(inv => inv.id === itemId);
+          if (invItem) {
+            let otherAlloc = 0;
+            updated.forEach((line, idx) => {
+              if (idx !== i && line.inventoryItemId === itemId) {
+                otherAlloc += (line.quantity || 1);
+              }
+            });
+            const maxAllowed = Math.max(1, invItem.quantity - otherAlloc);
+            updated[i].quantity = Math.min(updated[i].quantity || 1, maxAllowed);
+          }
+        }
+      }
       return updated;
     });
   };
 
   const getItem = (id) => inventory.find(inv => inv.id === id) || null;
+
+  // Compute remaining available stock for each inventory item,
+  // accounting for quantities already allocated across all current lines
+  const remainingStock = useMemo(() => {
+    const allocated = {};
+    lines.forEach(line => {
+      if (line.inventoryItemId) {
+        allocated[line.inventoryItemId] = (allocated[line.inventoryItemId] || 0) + (line.quantity || 1);
+      }
+    });
+    const result = {};
+    availableItems.forEach(item => {
+      result[item.id] = Math.max(0, item.quantity - (allocated[item.id] || 0));
+    });
+    return result;
+  }, [lines, availableItems]);
+
+  // Returns remaining stock for a given inventory item excluding current line's own allocation
+  const getRemainingForLine = (lineIndex, itemId) => {
+    if (!itemId) return 0;
+    const item = getItem(itemId);
+    if (!item) return 0;
+    let allocated = 0;
+    lines.forEach((line, idx) => {
+      if (idx !== lineIndex && line.inventoryItemId === itemId) {
+        allocated += (line.quantity || 1);
+      }
+    });
+    return Math.max(0, item.quantity - allocated);
+  };
 
   const getAvailableAssetTags = (id) => {
     const item = getItem(id);
@@ -410,11 +477,56 @@ const AssetForm = ({ onClose, onSuccess }) => {
     return [];
   };
 
-  const getMaxQty = (id) => getItem(id)?.quantity || 1;
+  // getMaxQty now handled per-line via getRemainingForLine
 
   const handleConfirm = () => {
     const validLines = lines.filter(l => l.inventoryItemId);
-    if (validLines.length === 0) { alert('Please select at least one inventory item.'); return; }
+    if (validLines.length === 0) {
+      setDeployError({ title: 'No items selected', errors: ['Please select at least one inventory item to deploy.'] });
+      return;
+    }
+
+    // Validate stock availability across all lines
+    const stockErrors = [];
+    validLines.forEach((line, i) => {
+      const item = getItem(line.inventoryItemId);
+      if (!item) return;
+      const remaining = getRemainingForLine(
+        lines.indexOf(line),
+        line.inventoryItemId
+      );
+      const effectiveMax = remaining + line.quantity; // remaining + own allocation
+      if (line.quantity > effectiveMax) {
+        stockErrors.push(
+          `Item ${i + 1} — "${item.description}": requested ${line.quantity} unit${line.quantity !== 1 ? 's' : ''} but only ${effectiveMax} available.`
+        );
+      }
+    });
+
+    // Check for items allocated beyond their total stock (cross-line conflict)
+    const totals = {};
+    validLines.forEach(line => {
+      totals[line.inventoryItemId] = (totals[line.inventoryItemId] || 0) + line.quantity;
+    });
+    Object.entries(totals).forEach(([id, totalRequested]) => {
+      const item = getItem(id);
+      if (!item) return;
+      if (totalRequested > item.quantity) {
+        const existing = stockErrors.find(e => e.includes(item.description));
+        if (!existing) {
+          stockErrors.push(
+            `"${item.description}": ${totalRequested} total units requested across lines, but only ${item.quantity} available in stock.`
+          );
+        }
+      }
+    });
+
+    if (stockErrors.length > 0) {
+      setDeployError({ title: 'Unable to Create Deployment', errors: stockErrors });
+      return;
+    }
+
+    setDeployError(null);
     setConfirmStep(true);
   };
 
@@ -483,6 +595,39 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1';
+
+  // Show deployment error modal
+  if (deployError) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle size={22} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-red-700">{deployError.title}</p>
+            <p className="text-xs text-red-600 mt-0.5">Please fix the following issue{deployError.errors.length !== 1 ? 's' : ''} before proceeding:</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {deployError.errors.map((err, i) => (
+            <div key={i} className="flex items-start gap-2 p-3 bg-white border border-red-200 rounded-xl">
+              <span className="text-red-400 font-bold text-xs mt-0.5 flex-shrink-0">{i + 1}.</span>
+              <p className="text-sm text-gray-700">{err}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+          <button
+            onClick={() => setDeployError(null)}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-900 rounded-lg hover:bg-blue-800 transition-colors"
+          >
+            Go Back &amp; Fix
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Show confirmation step
   if (confirmStep && !deployedAssets) {
@@ -580,7 +725,8 @@ const AssetForm = ({ onClose, onSuccess }) => {
             {lines.map((line, i) => {
               const item = getItem(line.inventoryItemId);
               const tags = getAvailableAssetTags(line.inventoryItemId);
-              const maxQty = item ? item.quantity : 1;
+              const maxQty = line.inventoryItemId ? getRemainingForLine(i, line.inventoryItemId) : 1;
+              // lineRemaining === maxQty — how many this line can still take
 
               return (
                 <div key={i} className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
@@ -594,20 +740,37 @@ const AssetForm = ({ onClose, onSuccess }) => {
                     )}
                   </div>
 
-                  {/* Inventory selector */}
+                  {/* Inventory selector — items with no remaining stock are disabled */}
                   <div>
                     <label className={lbl}>Inventory Item <span className="text-red-500">*</span></label>
                     <select value={line.inventoryItemId}
                       onChange={e => updateLine(i, 'inventoryItemId', e.target.value)}
                       className={inp}>
                       <option value="">— Choose an item —</option>
-                      {availableItems.map(inv => (
-                        <option key={inv.id} value={inv.id}>
-                          [{inv.item_code}] {inv.description} ({inv.category}) — {inv.quantity} available
-                        </option>
-                      ))}
+                      {availableItems.map(inv => {
+                        const remaining = getRemainingForLine(i, inv.id);
+                        const isThisLine = line.inventoryItemId === inv.id;
+                        const fullyAllocated = remaining <= 0 && !isThisLine;
+                        return (
+                          <option key={inv.id} value={inv.id} disabled={fullyAllocated}>
+                            [{inv.item_code}] {inv.description} ({inv.category}) —{' '}
+                            {isThisLine
+                              ? `${getRemainingForLine(i, inv.id)} remaining`
+                              : remaining <= 0
+                                ? 'Out of stock (fully allocated)'
+                                : `${remaining} available`}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
+
+                  {/* Warning if item is over-allocated */}
+                  {item && line.quantity > maxQty && (
+                    <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+                      <AlertCircle size={13} /> Quantity exceeds available stock for this item.
+                    </div>
+                  )}
 
                   {item && (
                     <>
@@ -621,39 +784,30 @@ const AssetForm = ({ onClose, onSuccess }) => {
                           <p className="font-semibold text-gray-800">&#8369;{(item.unit_price || 0).toLocaleString()}</p></div>
                       </div>
 
-                      {/* Asset tags from inventory */}
-                      <div className={`flex items-center gap-2 p-2 border rounded-lg ${tags.length > 0 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-200'}`}>
-                        <Tag size={13} className={tags.length > 0 ? 'text-green-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />
-                        <div className="text-xs">
-                          {tags.length > 0 ? (
-                            <>
-                              <p className="font-semibold text-green-700">Inventory Asset Tags:</p>
-                              <p className="text-green-600 font-mono">{tags.slice(0, 5).join(', ')}{tags.length > 5 ? ` +${tags.length - 5} more` : ''}</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="font-semibold text-gray-500">No Asset Tags</p>
-                              <p className="text-gray-400">Asset ID will show as N/A, no QR generated</p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
                       {/* Per-line fields */}
                       <div className="grid grid-cols-2 gap-3">
-                        {/* Quantity stepper */}
+                        {/* Quantity stepper — max is actual remaining stock for this line */}
                         <div>
-                          <label className={lbl}>Qty to Deploy <span className="text-xs text-gray-400">max {maxQty}</span></label>
+                          <label className={lbl}>
+                            Qty to Deploy
+                            <span className={`text-xs ml-1 ${maxQty <= 1 ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
+                              max {maxQty}
+                              {maxQty === 0 && ' — no stock remaining'}
+                              {maxQty === 1 && ' — last unit'}
+                            </span>
+                          </label>
                           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
                             <button type="button"
                               onClick={() => updateLine(i, 'quantity', Math.max(1, line.quantity - 1))}
-                              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium">-</button>
+                              disabled={line.quantity <= 1}
+                              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">-</button>
                             <input type="number" value={line.quantity} min={1} max={maxQty}
                               onChange={e => updateLine(i, 'quantity', Math.max(1, Math.min(parseInt(e.target.value) || 1, maxQty)))}
                               className="w-14 text-center py-2 border-x border-gray-300 focus:outline-none font-semibold text-gray-800 text-sm" />
                             <button type="button"
                               onClick={() => updateLine(i, 'quantity', Math.min(maxQty, line.quantity + 1))}
-                              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium">+</button>
+                              disabled={line.quantity >= maxQty}
+                              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">+</button>
                           </div>
                         </div>
                         <div><label className={lbl}>Serial Number</label>
@@ -688,11 +842,12 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
                       {/* Stock bar */}
                       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full transition-all"
-                          style={{ width: `${(line.quantity / maxQty) * 100}%` }} />
+                        <div className={`h-full rounded-full transition-all ${line.quantity >= maxQty ? 'bg-orange-400' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(100, (line.quantity / maxQty) * 100)}%` }} />
                       </div>
-                      <p className="text-xs text-gray-400">
+                      <p className={`text-xs ${line.quantity >= maxQty ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
                         Deploying {line.quantity} — Remaining after: {maxQty - line.quantity} {item.unit}
+                        {line.quantity >= maxQty && ' — no stock left after this'}
                       </p>
                     </>
                   )}
@@ -702,19 +857,6 @@ const AssetForm = ({ onClose, onSuccess }) => {
           </div>
         )}
       </div>
-
-      {/* Summary */}
-      {lines.some(l => l.inventoryItemId) && (
-        <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <Package size={15} className="text-green-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-green-800">
-            Deploying{' '}
-            <strong>{lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0)} asset record(s)</strong>
-            {' '}across <strong>{lines.filter(l => l.inventoryItemId).length} item type(s)</strong>.
-            QR codes will be taken from inventory asset tags where available.
-          </p>
-        </div>
-      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

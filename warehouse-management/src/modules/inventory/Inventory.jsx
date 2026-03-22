@@ -414,7 +414,7 @@ const Inventory = () => {
         </Card>
         <Card padding="p-4">
           <p className="text-xs text-gray-500 mb-1">
-            {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Value'}
+            {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Inventory Value'}
           </p>
           <p className="text-2xl font-bold text-blue-700">
             ₱{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
