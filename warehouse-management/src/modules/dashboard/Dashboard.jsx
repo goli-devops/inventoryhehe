@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Package, Clock, FileText, Scan, ChevronLeft, ChevronRight,
-  Plus, Trash2, Check, X, Calendar, AlertTriangle, Tag
+  Plus, Trash2, Check, X, Calendar, AlertTriangle, Tag, CheckCircle
 } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -184,7 +184,7 @@ const EventForm = ({ initial, onSave, onCancel }) => {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 const Dashboard = () => {
-  const { getStats, refreshData } = useWMS();
+  const { getStats, refreshData, purchaseRequests, assets } = useWMS();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
   const stats = getStats();
 
@@ -253,51 +253,92 @@ const Dashboard = () => {
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Today's Activity */}
+        {/* Pending Panel */}
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-800">Today's Activity</h3>
-              <p className="text-xs text-gray-400">{new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <h3 className="text-base font-semibold text-gray-800">Pending</h3>
+              <p className="text-xs text-gray-400">Purchase Requests and Deployments that requires attention</p>
             </div>
           </div>
           {(() => {
-            const todayEvents = events.filter(e => e.event_date?.split('T')[0] === todayStr);
-            if (todayEvents.length === 0) return (
+            const pendingPRs = (purchaseRequests || []).filter(pr =>
+              ['Submitted', 'For Canvass', 'Pending'].includes(pr.status)
+            );
+            const pendingAssets = (assets || []).filter(a =>
+              ['In Progress', 'For Delivery', 'On Hold'].includes(a.status)
+            );
+            const total = pendingPRs.length + pendingAssets.length;
+
+            if (total === 0) return (
               <div className="text-center py-10 text-gray-400">
-                <Clock size={40} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm font-medium">No activities today</p>
-                <p className="text-xs mt-1">Add events in the calendar below to track your day</p>
+                <CheckCircle size={40} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm font-medium">All caught up!</p>
+                <p className="text-xs mt-1">No pending PRs or assets at the moment</p>
               </div>
             );
+
             return (
-              <div className="space-y-2">
-                {todayEvents.map(event => {
-                  const tc = typeConfig(event.event_type);
-                  return (
-                    <div key={event.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                      event.completed ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'
-                    }`}>
-                      <button onClick={() => handleToggleComplete(event)}
-                        className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                          event.completed ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'
-                        }`}>
-                        {event.completed && <Check size={11} className="text-white" />}
-                      </button>
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tc.dot}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${event.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                          {event.title}
-                        </p>
-                        {event.notes && <p className="text-xs text-gray-400 truncate">{event.notes}</p>}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`text-xs px-2 py-0.5 rounded-full text-white ${tc.color}`}>{tc.label}</span>
-                        {event.event_time && <span className="text-xs text-gray-400">{event.event_time}</span>}
-                      </div>
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {/* Pending PRs */}
+                {pendingPRs.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                      <FileText size={11} /> Purchase Requests ({pendingPRs.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {pendingPRs.map(pr => (
+                        <div key={pr.id} className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-100 rounded-xl">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{pr.pr_number || pr.prNumber || '—'}</p>
+                            <p className="text-xs text-gray-500 truncate">{pr.requested_by || pr.requestedBy || '—'}</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-medium border border-yellow-200">
+                              {pr.status}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {pr.created_at ? new Date(pr.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {/* Pending Assets */}
+                {pendingAssets.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                      <Tag size={11} /> Deployments ({pendingAssets.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {pendingAssets.map(asset => (
+                        <div key={asset.id} className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{asset.description || '—'}</p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {asset.inventory_asset_tag?.trim() || 'N/A'} · {asset.assigned_to || 'Unassigned'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                              asset.status === 'In Progress'  ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              asset.status === 'For Delivery' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                              'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}>
+                              {asset.status}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {asset.po_number ? `PO# ${asset.po_number}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -333,6 +374,10 @@ const Dashboard = () => {
               <Calendar size={16} className="text-blue-600" />
               <h3 className="text-sm font-semibold text-gray-800">Calendar</h3>
             </div>
+            <button onClick={() => { setShowEventForm(true); setEditingEvent(null); }}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+              <Plus size={13} /> Add Event
+            </button>
           </div>
 
           <MiniCalendar events={events} onDayClick={handleDayClick} selectedDate={selectedDate} />
