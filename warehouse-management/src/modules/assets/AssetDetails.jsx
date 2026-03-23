@@ -4,7 +4,7 @@ import {
   ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle,
   QrCode, Printer, FileText
 } from 'lucide-react';
-import QRCodeDisplay from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { QRPreviewModal, buildAssetQRPayload } from '../../components/common/QRCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 
 
@@ -165,6 +165,50 @@ const reprintTransmittal = async (asset) => {
 };
 
 
+
+// ── Shared QR print — GOLI style: QR left + logo right + asset tag below ──────
+const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
+  const validTags = tags.filter(Boolean);
+  if (validTags.length === 0) { alert('No asset tags to print.'); return; }
+  const printWindow = window.open('', '_blank', 'width=800,height=700');
+  if (!printWindow) { alert('Please allow pop-ups to print.'); return; }
+  const QR_SIZE = 96;
+  const cards = validTags.map((tag, i) => `
+    <div class="qr-card">
+      <div class="qr-top">
+        <div class="qr-box"><div id="qr_${i}"></div></div>
+        <div class="logo-box">
+          <img src="/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
+          <div class="logo-fb">GOLI<br/>ICT</div>
+        </div>
+      </div>
+      <div class="asset-tag">${tag}</div>
+    </div>`).join('');
+  const scripts = validTags.map((tag, i) =>
+    'new QRCode(document.getElementById(\'qr_' + i + '\'),{text:' + JSON.stringify(payloadBuilder(tag, i)) + ',width:' + QR_SIZE + ',height:' + QR_SIZE + ',correctLevel:QRCode.CorrectLevel.M});'
+  ).join('\n');
+  const W = QR_SIZE * 2 + 36;
+  printWindow.document.write('<!DOCTYPE html><html><head><title>' + title + '</title><style>'
+    + '*{margin:0;padding:0;box-sizing:border-box}'
+    + 'body{background:#f0f0f0;padding:16px;font-family:Arial,sans-serif}'
+    + '.page{display:flex;flex-wrap:wrap;gap:14px}'
+    + '.qr-card{display:flex;flex-direction:column;align-items:center;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:12px 12px 10px;width:' + W + 'px;gap:8px;page-break-inside:avoid}'
+    + '.qr-top{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px}'
+    + '.qr-box{background:#fff;border-radius:6px;padding:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}'
+    + '.qr-box canvas,.qr-box img{display:block}'
+    + '.logo-box{flex:1;display:flex;align-items:center;justify-content:center}'
+    + '.logo-box img{max-width:64px;max-height:48px;object-fit:contain}'
+    + '.logo-fb{display:none;color:#1e3a8a;font-size:11px;font-weight:900;letter-spacing:2px;text-align:center;line-height:1.3}'
+    + '.asset-tag{color:#1e3a8a;font-family:monospace;font-size:13px;font-weight:700;letter-spacing:.06em;text-align:center;word-break:break-all;width:100%}'
+    + '@media print{body{background:#fff;padding:6px}.page{gap:10px}}'
+    + '</style></head><body>'
+    + '<div class="page">' + cards + '</div>'
+    + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
+    + '<script>window.addEventListener(\'load\',()=>{setTimeout(()=>{' + scripts + ';setTimeout(()=>window.print(),700)},300)});<\/script>'
+    + '</body></html>');
+  printWindow.document.close();
+};
+
 const STATUS_STYLES = {
   'In Progress':  'bg-blue-100 text-blue-700',
   'Deployed':     'bg-green-100 text-green-700',
@@ -273,11 +317,21 @@ const AssetDetails = ({ asset, onUpdate }) => {
           {(asset.po_number || asset.accountability_seq || asset.transmittal_seq) && (
             <div className="flex gap-2 pt-2 border-t border-gray-100">
               <button
+                onClick={() => goliPrintQR(
+                  [asset.inventory_asset_tag?.trim() || 'N/A'],
+                  (tag) => buildAssetQRPayload(asset),
+                  asset.description
+                )}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
+              >
+                <Printer size={12} /> Print QR Tag
+              </button>
+              <button
                 onClick={async () => { setReprinting('acc'); await reprintAccountability(asset); setReprinting(''); }}
                 disabled={reprinting === 'acc'}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-700 text-white text-xs font-medium rounded-lg hover:bg-indigo-800 disabled:opacity-50 transition-colors"
               >
-                <Printer size={12} /> {reprinting === 'acc' ? 'Generating…' : 'Accountability Form'}
+                <FileText size={12} /> {reprinting === 'acc' ? 'Generating…' : 'Accountability Form'}
               </button>
               <button
                 onClick={async () => { setReprinting('trs'); await reprintTransmittal(asset); setReprinting(''); }}
@@ -286,29 +340,6 @@ const AssetDetails = ({ asset, onUpdate }) => {
               >
                 <FileText size={12} /> {reprinting === 'trs' ? 'Generating…' : 'Transmittal Slip'}
               </button>
-            </div>
-          )}
-
-          {/* QR Code */}
-          {(asset.is_tagged || asset.isTagged) && (
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
-                <QrCode size={13} className="text-blue-500" /> QR Code
-              </p>
-              <div className="flex items-center gap-4">
-                <button onClick={() => setShowQRModal(true)}
-                  className="hover:opacity-75 transition-opacity focus:outline-none"
-                  title="Click to view / print QR">
-                  <QRCodeDisplay asset={asset} size={80} />
-                </button>
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p className="font-mono text-gray-700">{asset.qr_code || asset.asset_id}</p>
-                  <button onClick={() => setShowQRModal(true)}
-                    className="text-blue-600 hover:underline flex items-center gap-1">
-                    <QrCode size={11} /> View &amp; Print full QR
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

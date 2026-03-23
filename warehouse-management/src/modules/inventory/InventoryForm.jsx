@@ -106,6 +106,7 @@ const AssetTagRow = ({ index, tag, showQR, formData, onTagChange, onToggleQR }) 
         <div className="flex items-center gap-4 pl-14 pt-1">
           <QRCodeDisplay
             value={buildInventoryQRPayload(formData, tag, index)}
+            label={tag}
             size={80}
           />
           <div className="text-xs text-gray-500 space-y-1">

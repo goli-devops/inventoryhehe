@@ -5,6 +5,50 @@ import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
 import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
 
+// ── Shared QR print — GOLI style: QR left + logo right + asset tag below ──────
+const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
+  const validTags = tags.filter(Boolean);
+  if (validTags.length === 0) { alert('No asset tags to print.'); return; }
+  const printWindow = window.open('', '_blank', 'width=800,height=700');
+  if (!printWindow) { alert('Please allow pop-ups to print.'); return; }
+  const QR_SIZE = 96;
+  const cards = validTags.map((tag, i) => `
+    <div class="qr-card">
+      <div class="qr-top">
+        <div class="qr-box"><div id="qr_${i}"></div></div>
+        <div class="logo-box">
+          <img src="/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
+          <div class="logo-fb">GOLI<br/>ICT</div>
+        </div>
+      </div>
+      <div class="asset-tag">${tag}</div>
+    </div>`).join('');
+  const scripts = validTags.map((tag, i) =>
+    'new QRCode(document.getElementById(\'qr_' + i + '\'),{text:' + JSON.stringify(payloadBuilder(tag, i)) + ',width:' + QR_SIZE + ',height:' + QR_SIZE + ',correctLevel:QRCode.CorrectLevel.M});'
+  ).join('\n');
+  const W = QR_SIZE * 2 + 36;
+  printWindow.document.write('<!DOCTYPE html><html><head><title>' + title + '</title><style>'
+    + '*{margin:0;padding:0;box-sizing:border-box}'
+    + 'body{background:#f0f0f0;padding:16px;font-family:Arial,sans-serif}'
+    + '.page{display:flex;flex-wrap:wrap;gap:14px}'
+    + '.qr-card{display:flex;flex-direction:column;align-items:center;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:12px 12px 10px;width:' + W + 'px;gap:8px;page-break-inside:avoid}'
+    + '.qr-top{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px}'
+    + '.qr-box{background:#fff;border-radius:6px;padding:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}'
+    + '.qr-box canvas,.qr-box img{display:block}'
+    + '.logo-box{flex:1;display:flex;align-items:center;justify-content:center}'
+    + '.logo-box img{max-width:64px;max-height:48px;object-fit:contain}'
+    + '.logo-fb{display:none;color:#1e3a8a;font-size:11px;font-weight:900;letter-spacing:2px;text-align:center;line-height:1.3}'
+    + '.asset-tag{color:#1e3a8a;font-family:monospace;font-size:13px;font-weight:700;letter-spacing:.06em;text-align:center;word-break:break-all;width:100%}'
+    + '@media print{body{background:#fff;padding:6px}.page{gap:10px}}'
+    + '</style></head><body>'
+    + '<div class="page">' + cards + '</div>'
+    + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
+    + '<script>window.addEventListener(\'load\',()=>{setTimeout(()=>{' + scripts + ';setTimeout(()=>window.print(),700)},300)});<\/script>'
+    + '</body></html>');
+  printWindow.document.close();
+};
+
+
 // Normalize asset_tags from Supabase — handles array, object, JSON string, or null
 const normalizeAssetTags = (raw) => {
   if (!raw) return [];
@@ -89,28 +133,11 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
   );
 
   const printQR = (tags) => {
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
-    if (!printWindow) { alert('Please allow pop-ups to print.'); return; }
-    const cards = tags.map((tag, i) => `
-      <div class="qr-card">
-        <div id="qr_${i}"></div>
-        <div class="qr-info">
-          <p class="item-name">${formData.description}</p>
-          <p class="tag-num">Asset Tag: <strong>${tag}</strong></p>
-          <p class="unit-num">Unit ${i + 1} of ${tags.length}</p>
-        </div>
-      </div>`).join('');
-    const scripts = tags.map((tag, i) =>
-      `new QRCode(document.getElementById('qr_${i}'), { text: ${JSON.stringify(buildPayload(tag, i))}, width: 96, height: 96 });`
-    ).join('\n');
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>QR Codes</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial;padding:16px}
-.grid{display:flex;flex-wrap:wrap;gap:12px}.qr-card{display:flex;align-items:center;gap:10px;border:1px solid #ddd;border-radius:8px;padding:10px;width:260px}
-.item-name{font-size:11px;font-weight:700;margin-bottom:3px}.tag-num{font-size:11px}.unit-num{font-size:10px;color:#666;margin-top:2px}</style></head>
-<body><div class="grid">${cards}</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script>window.addEventListener('load',()=>{setTimeout(()=>{${scripts};setTimeout(()=>window.print(),600)},300)})</script></body></html>`);
-    printWindow.document.close();
+    goliPrintQR(
+      tags.filter(Boolean),
+      (tag, i) => buildPayload(tag, i),
+      formData.description || 'Asset Tags'
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -282,7 +309,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
                       </button>
                       {tag && tag !== 'N/A' && (
                         <div className="flex-shrink-0">
-                          <QRCodeDisplay value={buildPayload(tag, i)} size={48} />
+                          <QRCodeDisplay value={buildPayload(tag, i)} label={tag} size={48} />
                         </div>
                       )}
                       {tag && tag !== 'N/A' && (
