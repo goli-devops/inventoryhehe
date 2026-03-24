@@ -213,35 +213,22 @@ export const WMSProvider = ({ children }) => {
     const { inventoryItemId, quantity = 1, inventoryAssetTags = [], ...rest } = assetData;
     const qty = Math.max(1, parseInt(quantity) || 1);
 
-    // Step 1 — create N asset records sequentially to avoid race conditions
-    // (parallel Promise.all with same-ms timestamps causes duplicate asset_id)
-    const allCreated = [];
-    for (let i = 0; i < qty; i++) {
-      // Use indexed tag; if none available generate a truly unique ID with index suffix
+    // Step 1 — build all asset row data, then batch insert in ONE DB call
+    const batchData = Array.from({ length: qty }, (_, i) => {
       const rawTag = inventoryAssetTags[i] || rest.inventoryAssetTag || '';
-      const tag = rawTag.trim()?.substring(0, 90) || '';
-      // For no-tag units, pass a unique seed so generateAssetID adds an index
-      const qrCode = tag ? [
-        '== GOLI ICT INVENTORY ==',
-        `Asset Tag : ${tag}`,
-        `Item      : ${rest.description || ''}`,
-        `Category  : ${rest.category || ''}`,
-        `Location  : ${rest.location || ''}`,
-        '========================',
-      ].join('\n') : rest.inventoryQrCode || null;
-      const created = await AssetService.create({
+      const tag    = rawTag.trim()?.substring(0, 90) || '';
+      return {
         ...rest,
         serialNumber: qty > 1 && rest.serialNumber
           ? `${rest.serialNumber}-${String(i + 1).padStart(2, '0')}`
           : rest.serialNumber,
         inventoryAssetTag: tag,
-        inventoryQrCode: qrCode,
-        unitIndex: i, // used to ensure unique ID when no asset tag
+        unitIndex:         i,
         inventoryItemId,
-        createdBy: currentUser.name,
-      });
-      if (created) allCreated.push(created);
-    }
+        createdBy:         currentUser.name,
+      };
+    });
+    const allCreated = await AssetService.createBatch(batchData);
 
     if (allCreated.length === 0) return null;
 
@@ -364,8 +351,8 @@ export const WMSProvider = ({ children }) => {
       pendingPRs: safePRs.filter(pr =>
         pr.status === 'Submitted' || pr.status === 'For Canvass'
       ).length,
-      assetsTagged: safeAssets.filter(asset =>
-        (asset.is_tagged || asset.isTagged) && asset.status !== 'Cancelled'
+      pendingPO: safeAssets.filter(asset =>
+        ['In Progress', 'For Delivery', 'On Hold'].includes(asset.status)
       ).length,
       lowStockItems: safeInventory.filter(item => {
         const min = item.min_stock_level ?? item.minStockLevel ?? 0;
@@ -374,6 +361,65 @@ export const WMSProvider = ({ children }) => {
       outOfStockItems: safeInventory.filter(item => item.quantity === 0).length,
     };
   };
+
+
+  const bulkCancelAssets = useCallback(async (assetsList, reason) => {
+    if (!assetsList?.length) return { succeeded: 0, failed: 0 };
+
+    // Step 1 — batch cancel all assets in ONE DB round-trip
+    const results = await AssetService.cancelBatch(
+      assetsList.map(a => a.id),
+      reason,
+      currentUser.name
+    );
+
+    if (!results.length) return { succeeded: 0, failed: assetsList.length };
+
+    // Update assets state immediately
+    const updatedMap = {};
+    results.forEach(r => { if (r.asset) updatedMap[r.asset.id] = r.asset; });
+    setAssets(prev => prev.map(a => updatedMap[a.id] || a));
+
+    // Step 2 — restore inventory sequentially (must be sequential to avoid qty race)
+    const byInventoryItem = {};
+    results.forEach(r => {
+      if (r.inventoryItemId) {
+        if (!byInventoryItem[r.inventoryItemId]) byInventoryItem[r.inventoryItemId] = [];
+        byInventoryItem[r.inventoryItemId].push(r.asset?.inventory_asset_tag || '');
+      }
+    });
+
+    for (const [invId, tags] of Object.entries(byInventoryItem)) {
+      const qty = tags.length;
+      const returnedTags = tags.filter(Boolean);
+      const updatedItem = await InventoryService.adjustQuantity(
+        invId, qty,
+        `Returned from Cancelled Asset (x${qty})`,
+        currentUser.name,
+        returnedTags
+      );
+      if (updatedItem) {
+        setInventory(prev => prev.map(item => item.id === invId ? updatedItem : item));
+      }
+    }
+
+    // Fire-and-forget audit logs in parallel
+    results.forEach(r => {
+      if (r.asset) {
+        AssetAuditLogService.log({
+          action:      'Cancelled',
+          assetId:     r.asset.id,
+          assetTag:    r.asset.inventory_asset_tag || r.asset.asset_id,
+          description: r.asset.description,
+          reason,
+          user:        currentUser.name,
+          date:        new Date().toISOString(),
+        }).catch(() => {});
+      }
+    });
+
+    return { succeeded: results.length, failed: assetsList.length - results.length };
+  }, [currentUser, setAssets, setInventory]);
 
   const value = {
     // State
@@ -395,6 +441,7 @@ export const WMSProvider = ({ children }) => {
     deployAsset,
     updateAsset,
     cancelAsset,
+    bulkCancelAssets,
     assignAsset,
     returnAsset,
     deleteAsset,

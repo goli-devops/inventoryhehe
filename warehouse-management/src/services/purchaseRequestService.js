@@ -21,8 +21,8 @@ const TRACKED_FIELDS = Object.keys(FIELD_LABELS);
 const PurchaseRequestService = {
   generatePRNumber() {
     const year = new Date().getFullYear();
-    const timestamp = Date.now();
-    return `PR-${year}-${timestamp.toString().slice(-6)}`;
+    const rand = Math.floor(Math.random() * 900000 + 100000);
+    return `PR-${year}-${rand}`;
   },
 
   async create(prData) {

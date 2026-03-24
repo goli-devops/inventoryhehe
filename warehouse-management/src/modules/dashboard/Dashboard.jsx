@@ -245,8 +245,8 @@ const Dashboard = () => {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Total Inventory Items" value={stats.totalInventoryItems} iconBg="bg-blue-100"   iconColor="text-blue-600" />
-        <StatCard label="Pending PRs"           value={stats.pendingPRs}          iconBg="bg-yellow-100" iconColor="text-yellow-600" />
-        <StatCard label="Assets Tagged"         value={stats.assetsTagged}        iconBg="bg-purple-100" iconColor="text-purple-600" />
+        <StatCard label="Pending PR"           value={stats.pendingPRs}          iconBg="bg-yellow-100" iconColor="text-yellow-600" />
+        <StatCard label="Pending PO"            value={stats.pendingPO}           iconBg="bg-purple-100" iconColor="text-purple-600" />
         <StatCard label="Low Stock Items"       value={stats.lowStockItems}       iconBg="bg-orange-100" iconColor="text-orange-600" />
       </div>
 
@@ -257,8 +257,8 @@ const Dashboard = () => {
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-800">Pending</h3>
-              <p className="text-xs text-gray-400">Purchase Requests and Deployments that requires attention</p>
+              <h3 className="text-base font-semibold text-gray-800">Pending PR/PO</h3>
+              <p className="text-xs text-gray-400">Purchase Requests and Assets requiring attention</p>
             </div>
           </div>
           {(() => {
@@ -311,7 +311,7 @@ const Dashboard = () => {
                 {pendingAssets.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                      <Tag size={11} /> Deployments ({pendingAssets.length})
+                      <Tag size={11} /> Assets ({pendingAssets.length})
                     </p>
                     <div className="space-y-1.5">
                       {pendingAssets.map(asset => (

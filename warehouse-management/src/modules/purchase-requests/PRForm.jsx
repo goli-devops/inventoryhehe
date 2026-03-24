@@ -223,7 +223,7 @@ const PRForm = ({ onClose, onSuccess }) => {
                   className={inputCls} />
               </div>
               <div className="col-span-2">
-                <select value={item.unit}
+                <select value={item.unit} required
                   onChange={e => handleItemChange(index, 'unit', e.target.value)}
                   className={inputCls}>
                   <option value="" disabled hidden>Unit</option>
@@ -231,7 +231,7 @@ const PRForm = ({ onClose, onSuccess }) => {
                 </select>
               </div>
               <div className="col-span-2">
-                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="1"
+                <input type="number" required placeholder="0.00" value={item.estimatedPrice} min="0" step="1"
                   onChange={e => handleItemChange(index, 'estimatedPrice', e.target.value)}
                   className={inputCls} />
               </div>

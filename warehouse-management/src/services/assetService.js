@@ -79,6 +79,89 @@ const AssetService = {
     } catch (error) { console.error('Error creating asset:', error); return null; }
   },
 
+  // Batch insert — creates all asset records in a single DB call
+  async createBatch(assetsDataArray) {
+    try {
+      const rows = assetsDataArray.map((assetData, idx) => {
+        const tag    = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
+        const hasTag = !!tag;
+        const assetID = hasTag
+          ? tag
+          : this.generateAssetID(assetData.category, assetData.unitIndex ?? idx);
+        const qrData = hasTag ? this.generateQRCode(assetID) : { qr_code: null, qr_url: null };
+        return {
+          asset_id:           assetID,
+          description:        assetData.description,
+          category:           assetData.category,
+          po_number:          assetData.poNumber          || '',
+          pr_number:          assetData.prNumber          || '',
+          jor_number:         assetData.jorNumber         || '',
+          serial_number:      assetData.serialNumber      || '',
+          accountability_seq: assetData.accountabilitySeq || '',
+          transmittal_seq:    assetData.transmittalSeq    || '',
+          inventory_asset_tag:hasTag ? tag : '',
+          location:           assetData.location          || '',
+          assigned_to:        assetData.assignedTo        || null,
+          status:             assetData.status            || 'In Progress',
+          purchase_date:      assetData.purchaseDate      || new Date().toISOString(),
+          purchase_price:     assetData.purchasePrice     || 0,
+          warranty:           assetData.warranty          || '',
+          qr_code:            qrData.qr_code,
+          qr_url:             qrData.qr_url,
+          is_tagged:          hasTag,
+          inventory_item_id:  assetData.inventoryItemId   || null,
+          created_by:         assetData.createdBy,
+          history: [{ action: 'Created', date: new Date().toISOString(), user: assetData.createdBy, status: assetData.status || 'In Progress' }],
+        };
+      });
+
+      const { data, error } = await supabase
+        .from('assets')
+        .insert(rows)
+        .select();
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error batch creating assets:', error);
+      return [];
+    }
+  },
+
+  // Batch cancel — fetches all assets at once, updates all at once in one DB call
+  async cancelBatch(ids, reason, user) {
+    try {
+      const { data: assets, error: fetchErr } = await supabase
+        .from('assets')
+        .select('*')
+        .in('id', ids);
+      if (fetchErr) throw fetchErr;
+
+      const now = new Date().toISOString();
+      const results = await Promise.all(
+        assets.map(async (asset) => {
+          const updatedHistory = [...(asset.history || []), {
+            action: 'Cancelled', date: now, user, reason,
+            field: 'Status', from: asset.status, to: 'Cancelled',
+            details: `Asset cancelled. Reason: ${reason}`,
+          }];
+          const { data, error } = await supabase
+            .from('assets')
+            .update({ status: 'Cancelled', history: updatedHistory })
+            .eq('id', asset.id)
+            .select()
+            .single();
+          if (error) throw error;
+          return { asset: data, inventoryItemId: asset.inventory_item_id };
+        })
+      );
+      return results;
+    } catch (error) {
+      console.error('Error batch cancelling assets:', error);
+      return [];
+    }
+  },
+
+
   async getAll() {
     try {
       const { data, error } = await supabase.from('assets').select('*').order('created_at', { ascending: false });

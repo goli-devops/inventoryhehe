@@ -409,10 +409,12 @@ const AssetForm = ({ onClose, onSuccess }) => {
       if (field === 'inventoryItemId') {
         updated[i].quantity = 1;
       }
-      // Clamp quantity: never exceed available stock considering other lines
+      // Clamp quantity: only clamp when value is a real number (not empty/mid-type)
       if (field === 'quantity' || field === 'inventoryItemId') {
         const itemId = updated[i].inventoryItemId;
-        if (itemId) {
+        const currentQty = updated[i].quantity;
+        // Skip clamping if value is empty string or not yet a valid number
+        if (itemId && currentQty !== '' && !isNaN(parseInt(currentQty))) {
           const invItem = inventory.find(inv => inv.id === itemId);
           if (invItem) {
             let otherAlloc = 0;
@@ -422,7 +424,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
               }
             });
             const maxAllowed = Math.max(1, invItem.quantity - otherAlloc);
-            updated[i].quantity = Math.min(updated[i].quantity || 1, maxAllowed);
+            updated[i].quantity = Math.min(parseInt(currentQty), maxAllowed);
           }
         }
       }
@@ -664,19 +666,19 @@ const AssetForm = ({ onClose, onSuccess }) => {
         <div className="grid grid-cols-2 gap-3">
           <div><label className={lbl}>PO Number</label>
             <input type="text" name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
-              placeholder="e.g. PO-2025-001" className={inp} /></div>
+              placeholder="" className={inp} /></div>
           <div><label className={lbl}>PR Number</label>
             <input type="text" name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
-              placeholder="e.g. PR-2025-001" className={inp} /></div>
+              placeholder="" className={inp} /></div>
           <div><label className={lbl}>JOR Number</label>
             <input type="text" name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
-              placeholder="e.g. JOR-2025-001" className={inp} /></div>
+              placeholder="" className={inp} /></div>
           <div><label className={lbl}>Accountability Seq. No.</label>
-            <input type="text" name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
-              placeholder="e.g. ACC-001" className={inp} /></div>
+            <input type="text" required name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
+              placeholder="" className={inp} /></div>
           <div><label className={lbl}>Transmittal Seq. No.</label>
-            <input type="text" name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
-              placeholder="e.g. TRS-001" className={inp} /></div>
+            <input type="text" required name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
+              placeholder="" className={inp} /></div>
         </div>
       </div>
 
@@ -700,7 +702,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
               placeholder="Employee name" className={inp} /></div>
           <div><label className={lbl}>Default Location</label>
             <input type="text" name="location" value={sharedData.location} onChange={handleSharedChange}
-              placeholder="e.g. Office 3F" className={inp} /></div>
+              placeholder="" className={inp} /></div>
 
         </div>
       </div>
@@ -746,7 +748,6 @@ const AssetForm = ({ onClose, onSuccess }) => {
                     <select value={line.inventoryItemId}
                       onChange={e => updateLine(i, 'inventoryItemId', e.target.value)}
                       className={inp}>
-                      <option value="">— Choose an item —</option>
                       {availableItems.map(inv => {
                         const remaining = getRemainingForLine(i, inv.id);
                         const isThisLine = line.inventoryItemId === inv.id;
@@ -801,9 +802,28 @@ const AssetForm = ({ onClose, onSuccess }) => {
                               onClick={() => updateLine(i, 'quantity', Math.max(1, line.quantity - 1))}
                               disabled={line.quantity <= 1}
                               className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">-</button>
-                            <input type="number" value={line.quantity} min={1} max={maxQty}
-                              onChange={e => updateLine(i, 'quantity', Math.max(1, Math.min(parseInt(e.target.value) || 1, maxQty)))}
-                              className="w-14 text-center py-2 border-x border-gray-300 focus:outline-none font-semibold text-gray-800 text-sm" />
+                            <input
+                              type="number"
+                              value={line.quantity}
+                              min={1}
+                              max={maxQty}
+                              onChange={e => {
+                                const raw = e.target.value;
+                                // Allow empty or in-progress input while typing
+                                if (raw === '' || raw === '0') {
+                                  updateLine(i, 'quantity', raw);
+                                } else {
+                                  const n = parseInt(raw);
+                                  if (!isNaN(n)) updateLine(i, 'quantity', n);
+                                }
+                              }}
+                              onBlur={e => {
+                                // Clamp to valid range only when user leaves the field
+                                const n = parseInt(e.target.value);
+                                updateLine(i, 'quantity', Math.max(1, Math.min(isNaN(n) ? 1 : n, maxQty)));
+                              }}
+                              className="w-16 text-center py-2 border-x border-gray-300 focus:outline-none font-semibold text-gray-800 text-sm"
+                            />
                             <button type="button"
                               onClick={() => updateLine(i, 'quantity', Math.min(maxQty, line.quantity + 1))}
                               disabled={line.quantity >= maxQty}
@@ -813,15 +833,15 @@ const AssetForm = ({ onClose, onSuccess }) => {
                         <div><label className={lbl}>Serial Number</label>
                           <input type="text" value={line.serialNumber}
                             onChange={e => updateLine(i, 'serialNumber', e.target.value)}
-                            placeholder="SN-xxxxx" className={inp} /></div>
-                        <div><label className={lbl}>Assigned To <span className="text-xs text-gray-400">(overrides default)</span></label>
+                            placeholder="" className={inp} /></div>
+                        <div><label className={lbl}>Assigned To</label>
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}
                             placeholder={sharedData.assignedTo || 'Employee name'} className={inp} /></div>
-                        <div><label className={lbl}>Location <span className="text-xs text-gray-400">(overrides default)</span></label>
+                        <div><label className={lbl}>Location</label>
                           <input type="text" value={line.location}
-                            onChange={e => updateLine(i, 'location', e.target.value)}
-                            placeholder={sharedData.location || 'Location'} className={inp} /></div>
+                            onChange={e => updateLine(i, '', e.target.value)}
+                            placeholder={sharedData.location || ''} className={inp} /></div>
                         <div>
                           <label className={lbl}>Warranty</label>
                           <div className="flex gap-1.5">
@@ -857,6 +877,19 @@ const AssetForm = ({ onClose, onSuccess }) => {
           </div>
         )}
       </div>
+
+      {/* Summary */}
+      {lines.some(l => l.inventoryItemId) && (
+        <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <Package size={15} className="text-green-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-green-800">
+            Deploying{' '}
+            <strong>{lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0)} asset record(s)</strong>
+            {' '}across <strong>{lines.filter(l => l.inventoryItemId).length} item type(s)</strong>.
+            QR codes will be taken from inventory asset tags where available.
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

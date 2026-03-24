@@ -97,7 +97,7 @@ const CancelConfirmModal = ({ asset, onConfirm, onCancel }) => {
         <div>
           <p className="text-sm font-semibold text-red-700">You are about to cancel this asset</p>
           <p className="text-sm text-red-600 mt-0.5">
-            The asset status will be set to Cancelled. If it was deployed from inventory, 1 unit should be returned.
+            The asset status will be set to Cancelled. If it was deployed from inventory, 1 unit will be returned to stock.
           </p>
         </div>
       </div>
@@ -392,7 +392,7 @@ const EMPTY_FILTERS = { assetId: '', category: '', status: '', assignedTo: '', l
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 const Assets = () => {
-  const { assets: rawAssets, deleteAsset, cancelAsset, getStats, loading, updateAsset } = useWMS();
+  const { assets: rawAssets, deleteAsset, cancelAsset, bulkCancelAssets, getStats, loading, updateAsset } = useWMS();
   const { categories } = useSettings();
   const assets = rawAssets ?? [];
   const stats  = getStats();
@@ -498,14 +498,8 @@ const Assets = () => {
 
   const handleBulkCancelConfirm = async (reason) => {
     if (!bulkCancelQueue?.length) return;
-    // Sequential — NOT parallel — to avoid race condition on inventory quantity updates.
-    // Parallel Promise.all causes all cancels to read the same qty before any write completes,
-    // resulting in only one unit being returned to inventory instead of N.
-    let failed = 0;
-    for (const asset of bulkCancelQueue) {
-      const ok = await cancelAsset(asset.id, reason);
-      if (!ok) failed++;
-    }
+    // Use bulkCancelAssets: batch DB update + sequential inventory restoration
+    const { succeeded, failed } = await bulkCancelAssets(bulkCancelQueue, reason);
     if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
     setBulkCancelQueue(null);
     clearSelection();
@@ -588,21 +582,6 @@ const Assets = () => {
           <FilterPanel filters={filters} onChange={handleFilterChange} onReset={resetFilters} categories={categories} />
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Total Deployments',   value: assets.length,       color: 'text-gray-800' },
-            { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
-            { label: 'Deployed',       value: inUse,               color: 'text-green-600' },
-            { label: 'In Progress',    value: maintenance,         color: 'text-blue-600' },
-            { label: 'Cancelled',      value: cancelled,           color: 'text-red-600' },
-          ].map(({ label, value, color }) => (
-            <Card key={label} padding="p-4">
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
-              <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            </Card>
-          ))}
-        </div>
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
@@ -831,7 +810,7 @@ const Assets = () => {
 
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
-          </div>
+             </div>
       </div>}
     </div>
   );
