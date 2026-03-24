@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Plus, Filter, Scan, Eye, Edit, Trash2, Ban,
+  Plus, Filter, Scan, Eye, Edit, Trash2, Ban, Printer,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
   Search, ShieldAlert, Square, CheckSquare,
   ChevronDown, ChevronUp,
@@ -351,6 +351,158 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
   );
 };
 
+
+// ── Group-level PDF helpers ────────────────────────────────────────────────────
+const loadPdfScript = (src) => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+  const s = document.createElement('script');
+  s.src = src; s.onload = res; s.onerror = rej;
+  document.head.appendChild(s);
+});
+
+const getGroupLogoBase64 = () => new Promise((resolve) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    resolve(c.toDataURL('image/png'));
+  };
+  img.onerror = () => resolve(null);
+  img.src = '/goli_logo.jpg';
+});
+
+const printGroupAccountability = async (groupAssets) => {
+  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 14;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  const first = groupAssets[0] || {};
+
+  const logoData = await getGroupLogoBase64();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
+
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text('ICT DEPARTMENT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(12);
+  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 4;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W - 38, 12);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(first.accountability_seq || first.po_number || ''), W - 32, 12);
+  doc.setTextColor(0, 0, 0);
+
+  y += 4;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 110, y + 0.5);
+  doc.text(first.jor_number || '', M + 13, y - 0.5);
+  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 120, y + 0.5);
+  doc.text(first.assigned_to || '', M + 13, y - 0.5);
+  doc.setFont('helvetica', 'bold'); doc.text('Position:', 122, y); doc.setFont('helvetica', 'normal');
+  doc.line(134, y + 0.5, W - M, y + 0.5);
+  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.text('Date:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 11, y + 0.5, 80, y + 0.5); doc.text(today, M + 12, y - 0.5);
+  y += 6;
+
+  // Group rows by description + join tags
+  const grouped = {};
+  groupAssets.forEach(a => {
+    const key = a.description || 'Unknown';
+    if (!grouped[key]) grouped[key] = { tags: [], qty: 0 };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') grouped[key].tags.push(tag);
+    grouped[key].qty++;
+  });
+  const tableRows = Object.entries(grouped).map(([desc, v]) => [
+    today, v.tags.length > 0 ? v.tags.join(', ') : 'N/A', desc, String(v.qty),
+  ]);
+  while (tableRows.length < 10) tableRows.push(['', '', '', '']);
+
+  doc.autoTable({
+    startY: y,
+    head: [['DATE', 'ASSET TAG', 'PARTICULARS', 'QTY.']],
+    body: tableRows,
+    styles: { fontSize: 8, cellPadding: 2.5, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10 },
+    bodyStyles: { minCellHeight: 9, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: { 0:{cellWidth:22,halign:'center'}, 1:{cellWidth:30,halign:'center'}, 2:{cellWidth:116}, 3:{cellWidth:14,halign:'center'} },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3, margin: { left: M, right: M },
+  });
+
+  const fy = doc.lastAutoTable.finalY + 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.text('I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.', M, fy, { maxWidth: W - M * 2 });
+  const sigY = fy + 18;
+  [{x:M,label:'APPROVED BY:',copy:'Original - Accounting'},{x:83,label:'ISSUED BY:',copy:'Duplicate - Audit'},{x:150,label:'SIGNATURE OF EMPLOYEE',copy:'Triplicate - Personal File'}].forEach(col => {
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text(col.label, col.x, sigY);
+    doc.setFont('helvetica','normal'); doc.line(col.x, sigY+12, col.x+50, sigY+12);
+    doc.setFontSize(7); doc.text(col.copy, col.x, sigY+16);
+  });
+  doc.save(`Accountability_Form_PO${first.po_number || ''}.pdf`);
+};
+
+const printGroupTransmittal = async (groupAssets) => {
+  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 20;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  const first = groupAssets[0] || {};
+
+  const logoData = await getGroupLogoBase64();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
+
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text('CORPORATE-ICT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(12); doc.text('Transmittal Slip', W / 2, y, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('N\u00ba', W - 38, y - 1);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(first.transmittal_seq || first.po_number || ''), W - 32, y);
+  doc.setTextColor(0, 0, 0); y += 10;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Date:', W - 55, y); doc.line(W - 47, y + 0.5, W - M, y + 0.5); doc.text(today, W - 46, y - 0.5); y += 8;
+
+  const itemMap = {};
+  groupAssets.forEach(a => {
+    const key = a.description || 'Unknown';
+    if (!itemMap[key]) itemMap[key] = { qty: 0, tags: [] };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') itemMap[key].tags.push(tag);
+    itemMap[key].qty++;
+  });
+  const tableRows = Object.entries(itemMap).map(([desc, v]) => [desc, v.tags.length > 0 ? v.tags.join(', ') : 'N/A', String(v.qty)]);
+  while (tableRows.length < 10) tableRows.push(['', '', '']);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Item Description', 'Asset Tag', 'Qty']],
+    body: tableRows,
+    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
+    bodyStyles: { minCellHeight: 10, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: { 0:{cellWidth:104}, 1:{cellWidth:44,halign:'center'}, 2:{cellWidth:22,halign:'center'} },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3, margin: { left: M, right: M },
+  });
+
+  const fy = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.line(M, fy, M + 42, fy); doc.text('Account', M + 10, fy + 5);
+  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
+  doc.save(`Transmittal_Slip_PO${first.po_number || ''}.pdf`);
+};
+
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
 const FilterPanel = ({ filters, onChange, onReset, categories }) => {
   const STATUSES = ['In Progress','Deployed','For Delivery','On Hold','Completed','Cancelled'];
@@ -456,7 +608,8 @@ const Assets = () => {
       const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
       return (
         (!q || [a.asset_id, a.description, a.category, a.location, a.assigned_to,
-                 a.serial_number, a.po_number, a.pr_number, a.jor_number]
+                 a.serial_number, a.po_number, a.pr_number, a.jor_number,
+                 a.transmittal_seq, a.accountability_seq]
           .some(f => String(f || '').toLowerCase().includes(q))) &&
         (!filters.assetId    || String(a.asset_id    || '').toLowerCase().includes(filters.assetId.toLowerCase())) &&
         (!filters.category   || a.category  === filters.category) &&
@@ -670,7 +823,7 @@ const Assets = () => {
                                 : <Square size={16} />}
                             </button>
                           </td>
-                          <td colSpan="8" className="px-4 py-2">
+                          <td colSpan="7" className="px-4 py-2">
                             <button onClick={() => toggleGroup(poKey)}
                               className="flex items-center gap-2 text-sm font-semibold w-full text-left">
                               {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -689,13 +842,29 @@ const Assets = () => {
                             </button>
                           </td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">
-                            <button
-                              onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
-                              title="Edit PO Group"
-                              className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
-                            >
-                              <Edit size={12} /> Edit Group
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => printGroupAccountability(groupAssets)}
+                                title="Print Accountability Form"
+                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                <Printer size={11} /> Accountability
+                              </button>
+                              <button
+                                onClick={() => printGroupTransmittal(groupAssets)}
+                                title="Print Transmittal Slip"
+                                className="flex items-center gap-1 px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                <Printer size={11} /> Transmittal
+                              </button>
+                              <button
+                                onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
+                                title="Edit PO Group"
+                                className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                <Edit size={12} /> Edit Group
+                              </button>
+                            </div>
                           </td>
                         </tr>
                         {/* Asset rows within the group */}
@@ -810,7 +979,7 @@ const Assets = () => {
 
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
-             </div>
+          </div>
       </div>}
     </div>
   );

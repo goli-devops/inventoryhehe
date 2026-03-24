@@ -368,7 +368,7 @@ const PurchaseRequests = () => {
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}>
           <ShieldAlert size={15} />
-          Deletion Audit Log
+          PR Deletion Audit Log
         </button>
       </div>
 

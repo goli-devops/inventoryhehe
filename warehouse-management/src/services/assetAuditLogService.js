@@ -4,19 +4,27 @@ const AssetAuditLogService = {
 
   async log({ action, assetId, assetCode, performedBy, snapshot, reason = '' }) {
     try {
-      const { data, error } = await supabase
-        .from('asset_audit_log')
-        .insert([{
-          action,
-          asset_id:     assetCode,   // the human-readable ID e.g. COM-123
-          asset_uuid:   assetId,     // the DB uuid
-          performed_by: performedBy,
-          reason:       reason || '',
-          snapshot:     snapshot || null,
-          performed_at: new Date().toISOString(),
-        }])
-        .select()
-        .single();
+      const safeAssetId =
+      assetCode ||
+      snapshot?.asset_id ||
+      assetId ||
+      'UNKNOWN';
+
+    const safePerformedBy = performedBy || 'System';
+
+    const { data, error } = await supabase
+      .from('asset_audit_log')
+      .insert([{
+        action: action || 'Unknown',
+        asset_id: safeAssetId,      // ✅ guaranteed NOT NULL
+        asset_uuid: assetId || null,
+        performed_by: safePerformedBy, // ✅ guaranteed NOT NULL
+        reason: reason || '',
+        snapshot: snapshot || null,
+        performed_at: new Date().toISOString(),
+      }])
+      .select()
+      .single();
 
       if (error) throw error;
       return data;

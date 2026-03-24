@@ -169,7 +169,7 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
 
   doc.autoTable({
     startY: y,
-    head: [['Item Description', 'Asset Tag', 'Qty']],
+    head: [['Item Description', 'Asset Tag/s', 'Qty']],
     body: tableRows,
     styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
     headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
@@ -319,9 +319,6 @@ const SuccessModal = ({ deployedAssets, sharedData, onClose }) => {
         <div className="text-center">
           <p className="text-base font-semibold text-gray-800">
             {deployedAssets.length} Asset{deployedAssets.length !== 1 ? 's' : ''} Deployed Successfully
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            {deployedAssets.map(a => a.inventory_asset_tag || 'N/A').join(', ')}
           </p>
         </div>
       </div>

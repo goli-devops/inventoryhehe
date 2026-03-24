@@ -179,7 +179,7 @@ const PRForm = ({ onClose, onSuccess }) => {
           <div>
             <label className={labelCls}>Contact Number</label>
             <input type="text" inputMode="numeric" name="contactNumber" value={formData.contactNumber}
-              onChange={e => setFormData(prev => ({ ...prev, contactNumber: e.target.value.replace(/\D/g, '') }))}
+              onChange={e => setFormData(prev => ({ ...prev, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
               placeholder="e.g. 09123456789" className={inputCls} />
           </div>
           <div className="col-span-2">

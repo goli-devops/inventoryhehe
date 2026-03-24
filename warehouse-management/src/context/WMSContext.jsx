@@ -316,7 +316,7 @@ export const WMSProvider = ({ children }) => {
     AssetAuditLogService.log({
       action:      'Cancelled',
       assetId:     id,
-      assetCode:   result.asset?.asset_id || id,
+      assetCode: snapshot?.asset_id ?? id,   // safer (handles undefined/null)
       performedBy: currentUser.name,
       snapshot:    result.asset,
       reason,
@@ -331,7 +331,7 @@ export const WMSProvider = ({ children }) => {
       await AssetAuditLogService.log({
         action:      'Deleted',
         assetId:     id,
-        assetCode:   snapshot?.asset_id || id,
+        assetCode: snapshot?.asset_id ?? id,   // safer (handles undefined/null)
         performedBy: currentUser.name,
         snapshot,
         reason,
@@ -409,7 +409,8 @@ export const WMSProvider = ({ children }) => {
         AssetAuditLogService.log({
           action:      'Cancelled',
           assetId:     r.asset.id,
-          assetTag:    r.asset.inventory_asset_tag || r.asset.asset_id,
+          assetCode:    r.asset.inventory_asset_tag || r.asset.asset_id,
+          performedBy: currentUser.name,
           description: r.asset.description,
           reason,
           user:        currentUser.name,
