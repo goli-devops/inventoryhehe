@@ -73,14 +73,21 @@ export const WMSProvider = ({ children }) => {
     const channel = supabase
       .channel('wms-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-        InventoryService.getAll().then(inv => {
-          if (Array.isArray(inv)) setInventory(inv);
-        });
+        clearTimeout(window._inventoryRefreshTimer);
+        window._inventoryRefreshTimer = setTimeout(() => {
+          InventoryService.getAll().then(inv => {
+            if (Array.isArray(inv)) setInventory(inv);
+          });
+        }, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => {
-        AssetService.getAll().then(ast => {
-          if (Array.isArray(ast)) setAssets(ast);
-        });
+        // Debounce to avoid multiple rapid refreshes during batch operations
+        clearTimeout(window._assetsRefreshTimer);
+        window._assetsRefreshTimer = setTimeout(() => {
+          AssetService.getAll().then(ast => {
+            if (Array.isArray(ast)) setAssets(ast);
+          });
+        }, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, () => {
         PurchaseRequestService.getAll().then(prs => {
@@ -252,9 +259,8 @@ export const WMSProvider = ({ children }) => {
       }
     }
 
-    // Step 3 — append new assets to state directly (no full refetch needed)
-    setAssets(prev => [...(Array.isArray(prev) ? prev : []), ...allCreated]);
-
+    // Step 3 — state update handled by realtime subscription (avoids double-add)
+    // No manual setAssets here — the realtime channel fires on INSERT and refreshes state
     return allCreated;
   }, [currentUser.name]);
 
@@ -316,7 +322,7 @@ export const WMSProvider = ({ children }) => {
     AssetAuditLogService.log({
       action:      'Cancelled',
       assetId:     id,
-      assetCode: snapshot?.asset_id ?? id,   // safer (handles undefined/null)
+      assetCode:   result.asset?.asset_id || id,
       performedBy: currentUser.name,
       snapshot:    result.asset,
       reason,
@@ -331,7 +337,7 @@ export const WMSProvider = ({ children }) => {
       await AssetAuditLogService.log({
         action:      'Deleted',
         assetId:     id,
-        assetCode: snapshot?.asset_id ?? id,   // safer (handles undefined/null)
+        assetCode:   snapshot?.asset_id || id,
         performedBy: currentUser.name,
         snapshot,
         reason,
@@ -409,8 +415,7 @@ export const WMSProvider = ({ children }) => {
         AssetAuditLogService.log({
           action:      'Cancelled',
           assetId:     r.asset.id,
-          assetCode:    r.asset.inventory_asset_tag || r.asset.asset_id,
-          performedBy: currentUser.name,
+          assetTag:    r.asset.inventory_asset_tag || r.asset.asset_id,
           description: r.asset.description,
           reason,
           user:        currentUser.name,

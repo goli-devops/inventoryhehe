@@ -246,7 +246,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Total Inventory Items" value={stats.totalInventoryItems} iconBg="bg-blue-100"   iconColor="text-blue-600" />
         <StatCard label="Pending PR"           value={stats.pendingPRs}          iconBg="bg-yellow-100" iconColor="text-yellow-600" />
-        <StatCard label="Pending PO"            value={stats.pendingPO}           iconBg="bg-purple-100" iconColor="text-purple-600" />
+        <StatCard label="Pending Deployments"            value={stats.pendingPO}           iconBg="bg-purple-100" iconColor="text-purple-600" />
         <StatCard label="Low Stock Items"       value={stats.lowStockItems}       iconBg="bg-orange-100" iconColor="text-orange-600" />
       </div>
 
@@ -354,7 +354,7 @@ const Dashboard = () => {
               <Package size={16} className="mr-2" /> Add Inventory Item
             </Button>
             <Button variant="purple"   className="w-full justify-center" onClick={() => setIsAssetModalOpen(true)}>
-              <Scan size={16} className="mr-2" /> Add New Asset
+              <Scan size={16} className="mr-2" /> Create Deployment
             </Button>
             <Button variant="secondary" className="w-full justify-center"
               onClick={() => alert('Export Report feature coming soon!')}>
@@ -374,10 +374,6 @@ const Dashboard = () => {
               <Calendar size={16} className="text-blue-600" />
               <h3 className="text-sm font-semibold text-gray-800">Calendar</h3>
             </div>
-            <button onClick={() => { setShowEventForm(true); setEditingEvent(null); }}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
-              <Plus size={13} /> Add Event
-            </button>
           </div>
 
           <MiniCalendar events={events} onDayClick={handleDayClick} selectedDate={selectedDate} />
@@ -506,7 +502,7 @@ const Dashboard = () => {
       <Modal isOpen={isReceiveModalOpen} onClose={() => setIsReceiveModalOpen(false)} title="Add Inventory Item" size="lg">
         <InventoryForm onClose={() => setIsReceiveModalOpen(false)} onSuccess={() => setIsReceiveModalOpen(false)} />
       </Modal>
-      <Modal isOpen={isAssetModalOpen} onClose={() => setIsAssetModalOpen(false)} title="Add New Asset" size="lg">
+      <Modal isOpen={isAssetModalOpen} onClose={() => setIsAssetModalOpen(false)} title="Create Deployment" size="lg">
         <AssetForm onClose={() => setIsAssetModalOpen(false)} onSuccess={() => setIsAssetModalOpen(false)} />
       </Modal>
     </div>

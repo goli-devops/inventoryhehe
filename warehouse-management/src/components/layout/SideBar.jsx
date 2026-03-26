@@ -110,7 +110,7 @@ const Sidebar = ({ activeModule, setActiveModule, setSidebarOpen }) => {
     { id: 'dashboard', name: 'Dashboard',           icon: LayoutDashboard },
     { id: 'pr',        name: 'Purchase Requests',   icon: FileText        },
     { id: 'inventory', name: 'Inventory',           icon: Package         },
-    { id: 'assets',    name: 'Deployment',      icon: Scan            },
+    { id: 'assets',    name: 'Deployments',      icon: Scan            },
     { id: 'reports',   name: 'Reports & Analytics', icon: BarChart3       },
     { id: 'settings',  name: 'Settings',            icon: Settings        },
   ];

@@ -169,7 +169,7 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
 
   doc.autoTable({
     startY: y,
-    head: [['Item Description', 'Asset Tag/s', 'Qty']],
+    head: [['Item Description', 'Asset Tag', 'Qty']],
     body: tableRows,
     styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
     headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
@@ -319,6 +319,9 @@ const SuccessModal = ({ deployedAssets, sharedData, onClose }) => {
         <div className="text-center">
           <p className="text-base font-semibold text-gray-800">
             {deployedAssets.length} Asset{deployedAssets.length !== 1 ? 's' : ''} Deployed Successfully
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {deployedAssets.map(a => a.inventory_asset_tag || 'N/A').join(', ')}
           </p>
         </div>
       </div>
@@ -661,19 +664,19 @@ const AssetForm = ({ onClose, onSuccess }) => {
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference Numbers</p>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className={lbl}>PO Number</label>
-            <input type="text" name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
+          <div><label className={lbl}>PO Number <span className="text-red-500">*</span></label>
+            <input type="text" required name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
               placeholder="" className={inp} /></div>
-          <div><label className={lbl}>PR Number</label>
-            <input type="text" name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
+          <div><label className={lbl}>PR Number <span className="text-red-500">*</span></label>
+            <input type="text" required name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
               placeholder="" className={inp} /></div>
-          <div><label className={lbl}>JOR Number</label>
-            <input type="text" name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
+          <div><label className={lbl}>JOR Number <span className="text-red-500">*</span></label>
+            <input type="text" required name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
               placeholder="" className={inp} /></div>
-          <div><label className={lbl}>Accountability Seq. No.</label>
+          <div><label className={lbl}>Accountability Seq. No. <span className="text-red-500">*</span></label>
             <input type="text" required name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
               placeholder="" className={inp} /></div>
-          <div><label className={lbl}>Transmittal Seq. No.</label>
+          <div><label className={lbl}>Transmittal Seq. No. <span className="text-red-500">*</span></label>
             <input type="text" required name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
               placeholder="" className={inp} /></div>
         </div>
@@ -699,7 +702,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
               placeholder="Employee name" className={inp} /></div>
           <div><label className={lbl}>Default Location</label>
             <input type="text" name="location" value={sharedData.location} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
+              placeholder="e.g. Office 3F" className={inp} /></div>
 
         </div>
       </div>
@@ -745,6 +748,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
                     <select value={line.inventoryItemId}
                       onChange={e => updateLine(i, 'inventoryItemId', e.target.value)}
                       className={inp}>
+                      <option value="" disabled>— Choose an inventory item —</option>
                       {availableItems.map(inv => {
                         const remaining = getRemainingForLine(i, inv.id);
                         const isThisLine = line.inventoryItemId === inv.id;
@@ -780,6 +784,24 @@ const AssetForm = ({ onClose, onSuccess }) => {
                           <p className="font-semibold text-gray-800">{item.quantity} {item.unit}</p></div>
                         <div><p className="text-blue-500 font-medium uppercase">Unit Price</p>
                           <p className="font-semibold text-gray-800">&#8369;{(item.unit_price || 0).toLocaleString()}</p></div>
+                      </div>
+
+                      {/* Asset tags from inventory */}
+                      <div className={`flex items-center gap-2 p-2 border rounded-lg ${tags.length > 0 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-200'}`}>
+                        <Tag size={13} className={tags.length > 0 ? 'text-green-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />
+                        <div className="text-xs">
+                          {tags.length > 0 ? (
+                            <>
+                              <p className="font-semibold text-green-700">Inventory Asset Tags:</p>
+                              <p className="text-green-600 font-mono">{tags.slice(0, 5).join(', ')}{tags.length > 5 ? ` +${tags.length - 5} more` : ''}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-semibold text-gray-500">No Asset Tags</p>
+                              <p className="text-gray-400">Asset ID will show as N/A, no QR generated</p>
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       {/* Per-line fields */}
@@ -830,15 +852,15 @@ const AssetForm = ({ onClose, onSuccess }) => {
                         <div><label className={lbl}>Serial Number</label>
                           <input type="text" value={line.serialNumber}
                             onChange={e => updateLine(i, 'serialNumber', e.target.value)}
-                            placeholder="" className={inp} /></div>
-                        <div><label className={lbl}>Assigned To</label>
+                            placeholder="SN-xxxxx" className={inp} /></div>
+                        <div><label className={lbl}>Assigned To <span className="text-xs text-gray-400">(overrides default)</span></label>
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}
                             placeholder={sharedData.assignedTo || 'Employee name'} className={inp} /></div>
-                        <div><label className={lbl}>Location</label>
+                        <div><label className={lbl}>Location <span className="text-xs text-gray-400">(overrides default)</span></label>
                           <input type="text" value={line.location}
-                            onChange={e => updateLine(i, '', e.target.value)}
-                            placeholder={sharedData.location || ''} className={inp} /></div>
+                            onChange={e => updateLine(i, 'location', e.target.value)}
+                            placeholder={sharedData.location || 'Location'} className={inp} /></div>
                         <div>
                           <label className={lbl}>Warranty</label>
                           <div className="flex gap-1.5">

@@ -179,7 +179,7 @@ const PRForm = ({ onClose, onSuccess }) => {
           <div>
             <label className={labelCls}>Contact Number</label>
             <input type="text" inputMode="numeric" name="contactNumber" value={formData.contactNumber}
-              onChange={e => setFormData(prev => ({ ...prev, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+              onChange={e => setFormData(prev => ({ ...prev, contactNumber: e.target.value.replace(/\D/g, '') }))}
               placeholder="e.g. 09123456789" className={inputCls} />
           </div>
           <div className="col-span-2">
@@ -223,15 +223,15 @@ const PRForm = ({ onClose, onSuccess }) => {
                   className={inputCls} />
               </div>
               <div className="col-span-2">
-                <select value={item.unit} required
+                <select value={item.unit}
                   onChange={e => handleItemChange(index, 'unit', e.target.value)}
                   className={inputCls}>
-                  <option value="" disabled hidden>Unit</option>
+                  <option value="" disabled>— Select unit —</option>
                   {units.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <input type="number" required placeholder="0.00" value={item.estimatedPrice} min="0" step="1"
+                <input type="number" placeholder="0.00" value={item.estimatedPrice} min="0" step="0.01"
                   onChange={e => handleItemChange(index, 'estimatedPrice', e.target.value)}
                   className={inputCls} />
               </div>
@@ -248,7 +248,7 @@ const PRForm = ({ onClose, onSuccess }) => {
         {totalEstimated > 0 && (
           <div className="flex justify-end mt-2">
             <span className="text-sm font-semibold text-gray-700">
-              Estimated Total: <span className="text-blue-600">₱{totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              Estimated Total: <span className="text-blue-600">${totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </span>
           </div>
         )}
