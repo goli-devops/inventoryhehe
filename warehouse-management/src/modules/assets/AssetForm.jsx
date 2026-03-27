@@ -664,21 +664,27 @@ const AssetForm = ({ onClose, onSuccess }) => {
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference Numbers</p>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className={lbl}>PO Number <span className="text-red-500">*</span></label>
-            <input type="text" required name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
-          <div><label className={lbl}>PR Number <span className="text-red-500">*</span></label>
-            <input type="text" required name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
-          <div><label className={lbl}>JOR Number <span className="text-red-500">*</span></label>
-            <input type="text" required name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
-          <div><label className={lbl}>Accountability Seq. No. <span className="text-red-500">*</span></label>
-            <input type="text" required name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
-          <div><label className={lbl}>Transmittal Seq. No. <span className="text-red-500">*</span></label>
-            <input type="text" required name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
-              placeholder="" className={inp} /></div>
+          <div><label className={lbl}>PO Number</label>
+            <input type="text" name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
+              placeholder="e.g. PO-2025-001" className={inp} /></div>
+          <div><label className={lbl}>PR Number</label>
+            <input type="text" name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
+              placeholder="e.g. PR-2025-001" className={inp} /></div>
+          <div><label className={lbl}>JOR Number</label>
+            <input type="text" name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
+              placeholder="e.g. JOR-2025-001" className={inp} /></div>
+          <div><label className={lbl}>Accountability Seq. No.</label>
+            <input type="text" name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
+              placeholder="e.g. ACC-001" className={inp} /></div>
+          <div><label className={lbl}>Transmittal Seq. No.</label>
+            <input type="text" name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
+              placeholder="e.g. TRS-001" className={inp} /></div>
+          <div><label className={lbl}>Receiving Report No. <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+            <input type="text" name="rrNumber" value={sharedData.rrNumber} onChange={handleSharedChange}
+              placeholder="e.g. RR-2025-001" className={inp} /></div>
+          <div><label className={lbl}>Sales Invoice No. <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+            <input type="text" name="siNumber" value={sharedData.siNumber} onChange={handleSharedChange}
+              placeholder="e.g. SI-2025-001" className={inp} /></div>
         </div>
       </div>
 
@@ -849,10 +855,6 @@ const AssetForm = ({ onClose, onSuccess }) => {
                               className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">+</button>
                           </div>
                         </div>
-                        <div><label className={lbl}>Serial Number</label>
-                          <input type="text" value={line.serialNumber}
-                            onChange={e => updateLine(i, 'serialNumber', e.target.value)}
-                            placeholder="SN-xxxxx" className={inp} /></div>
                         <div><label className={lbl}>Assigned To <span className="text-xs text-gray-400">(overrides default)</span></label>
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}

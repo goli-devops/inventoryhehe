@@ -59,6 +59,8 @@ const AssetService = {
         serial_number:      assetData.serialNumber      || '',
         accountability_seq: assetData.accountabilitySeq || '',
         transmittal_seq:    assetData.transmittalSeq    || '',
+        rr_number:          assetData.rrNumber          || '',
+        si_number:          assetData.siNumber          || '',
         inventory_asset_tag:hasTag ? tag : '',   // empty = no tag
         location:           assetData.location          || '',
         assigned_to:        assetData.assignedTo        || null,
@@ -99,6 +101,8 @@ const AssetService = {
           serial_number:      assetData.serialNumber      || '',
           accountability_seq: assetData.accountabilitySeq || '',
           transmittal_seq:    assetData.transmittalSeq    || '',
+        rr_number:          assetData.rrNumber          || '',
+        si_number:          assetData.siNumber          || '',
           inventory_asset_tag:hasTag ? tag : '',
           location:           assetData.location          || '',
           assigned_to:        assetData.assignedTo        || null,
@@ -127,39 +131,72 @@ const AssetService = {
     }
   },
 
-  // Batch cancel — fetches all assets at once, updates all at once in one DB call
   async cancelBatch(ids, reason, user) {
-    try {
-      const { data: assets, error: fetchErr } = await supabase
-        .from('assets')
-        .select('*')
-        .in('id', ids);
-      if (fetchErr) throw fetchErr;
+  try {
+    // 1. Fetch all assets in one query
+    const { data: assets, error: fetchErr } = await supabase
+      .from('assets')
+      .select('*')
+      .in('id', ids);
 
-      const now = new Date().toISOString();
-      const results = await Promise.all(
-        assets.map(async (asset) => {
-          const updatedHistory = [...(asset.history || []), {
-            action: 'Cancelled', date: now, user, reason,
-            field: 'Status', from: asset.status, to: 'Cancelled',
-            details: `Asset cancelled. Reason: ${reason}`,
-          }];
-          const { data, error } = await supabase
-            .from('assets')
-            .update({ status: 'Cancelled', history: updatedHistory })
-            .eq('id', asset.id)
-            .select()
-            .single();
-          if (error) throw error;
-          return { asset: data, inventoryItemId: asset.inventory_item_id };
+    if (fetchErr) throw fetchErr;
+    if (!assets || assets.length === 0) return [];
+
+    const now = new Date().toISOString();
+
+    // 2. Update each asset safely (NO UPSERT)
+    const updatePromises = assets.map(asset => {
+      const updatedHistory = [
+        ...(asset.history || []),
+        {
+          action: 'Cancelled',
+          date: now,
+          user,
+          reason,
+          field: 'Status',
+          from: asset.status,
+          to: 'Cancelled',
+          details: `Asset cancelled. Reason: ${reason}`,
+        },
+      ];
+
+      return supabase
+        .from('assets')
+        .update({
+          status: 'Cancelled',
+          history: updatedHistory,
         })
-      );
-      return results;
-    } catch (error) {
-      console.error('Error batch cancelling assets:', error);
-      return [];
-    }
-  },
+        .eq('id', asset.id)
+        .select()
+        .single();
+    });
+
+    const results = await Promise.all(updatePromises);
+
+    // 3. Handle errors per row (important for batch ops)
+    const updatedAssets = [];
+    results.forEach((res, index) => {
+      if (res.error) {
+        console.error('Failed to update asset:', assets[index].id, res.error);
+      } else {
+        updatedAssets.push(res.data);
+      }
+    });
+
+    // 4. Return same structure you already use (for inventory rollback)
+    return updatedAssets.map(updated => {
+      const original = assets.find(a => a.id === updated.id);
+      return {
+        asset: updated,
+        inventoryItemId: original?.inventory_item_id || null,
+      };
+    });
+
+  } catch (error) {
+    console.error('Error batch cancelling assets:', error);
+    return [];
+  }
+},
 
 
   async getAll() {

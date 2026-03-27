@@ -89,7 +89,12 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
     const slots = Array.from({ length: item.quantity || 0 }, (_, i) => originalTags[i] || '');
     return slots;
   };
-  const [assetTags, setAssetTags] = useState(initTags);
+  const [assetTags,     setAssetTags]     = useState(initTags);
+  const [serialNumbers, setSerialNumbers] = useState(() => {
+    const sns = item.serial_numbers || item.serialNumbers || [];
+    const arr = Array.isArray(sns) ? sns : (typeof sns === 'string' ? (() => { try { return JSON.parse(sns); } catch { return []; } })() : []);
+    return Array.from({ length: item.quantity || 0 }, (_, i) => arr[i] || '');
+  });
   const [loading,   setLoading]   = useState(false);
   const [showTags,  setShowTags]  = useState(false);
 
@@ -129,7 +134,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
 
   const buildPayload = (tag, i) => buildInventoryQRPayload(
     { item_code: item.item_code, description: formData.description, category: formData.category, location: formData.location },
-    tag, i
+    tag, i, serialNumbers[i] || ''
   );
 
   const printQR = (tags) => {
@@ -158,7 +163,8 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
         minStockLevel: formData.minStockLevel,
         maxStockLevel: formData.maxStockLevel,
         unitPrice:     formData.unitPrice,
-        assetTags:     assetTags.filter(Boolean), // save trimmed tags
+        assetTags:     assetTags.filter(Boolean),
+        serialNumbers: serialNumbers,
         status,
       });
 
@@ -292,35 +298,48 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
                   const tag = assetTags[i] || '';
                   const isRemoved = i >= qty && i < originalTags.length;
                   return (
-                    <div key={i} className={`flex items-center gap-3 p-2.5 rounded-xl border ${
+                    <div key={i} className={`p-2.5 rounded-xl border space-y-2 ${
                       isRemoved ? 'bg-red-50 border-red-200 opacity-50' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <span className="text-xs font-semibold text-gray-400 w-14 flex-shrink-0">Unit {i + 1}</span>
-                      <div className="relative flex-1">
-                        <Hash size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" inputMode="numeric" value={tag}
-                          onChange={e => handleTagChange(i, e.target.value)}
-                          placeholder="Numeric tag"
-                          className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <button type="button" onClick={() => handleTagChange(i, genTag(i))}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0">
-                        <RefreshCw size={13} />
-                      </button>
-                      {tag && tag !== 'N/A' && (
-                        <div className="flex-shrink-0">
-                          <QRCodeDisplay value={buildPayload(tag, i)} label={tag} size={48} />
+                      {/* Asset tag row */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-400 w-14 flex-shrink-0">Unit {i + 1}</span>
+                        <div className="relative flex-1">
+                          <Hash size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input type="text" inputMode="numeric" value={tag}
+                            onChange={e => handleTagChange(i, e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+                            placeholder="Numeric tag"
+                            className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
-                      )}
-                      {tag && tag !== 'N/A' && (
-                        <button type="button" onClick={() => printQR([tag])}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0" title="Print this QR">
-                          <Printer size={13} />
+                        <button type="button" onClick={() => handleTagChange(i, genTag(i))}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0">
+                          <RefreshCw size={13} />
                         </button>
-                      )}
-                      {(!tag || tag === 'N/A') && (
-                        <span className="text-xs text-gray-400 flex-shrink-0 px-1">N/A</span>
-                      )}
+                        {tag && tag !== 'N/A' && (
+                          <div className="flex-shrink-0">
+                            <QRCodeDisplay value={buildPayload(tag, i)} label={tag} size={48} />
+                          </div>
+                        )}
+                        {tag && tag !== 'N/A' && (
+                          <button type="button" onClick={() => printQR([tag])}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0" title="Print this QR">
+                            <Printer size={13} />
+                          </button>
+                        )}
+                        {(!tag || tag === 'N/A') && (
+                          <span className="text-xs text-gray-400 flex-shrink-0 px-1">N/A</span>
+                        )}
+                      </div>
+                      {/* Serial number */}
+                      <div className="flex items-center gap-2 pl-16">
+                        <input type="text"
+                          value={serialNumbers[i] || ''}
+                          onChange={e => setSerialNumbers(prev => { const n=[...prev]; n[i]=e.target.value; return n; })}
+                          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+                          placeholder="Serial number (scan or type)"
+                          className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                      </div>
                     </div>
                   );
                 })}

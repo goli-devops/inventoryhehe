@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import supabase from '../config/supabase';
 
 const AuthContext = createContext();
@@ -76,6 +76,50 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+
+  // ── Auto-logout after 10 minutes of inactivity ─────────────────────────────
+  const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutes
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const inactivityTimer   = useRef(null);
+  const warningTimer      = useRef(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearTimeout(inactivityTimer.current);
+    clearTimeout(warningTimer.current);
+    setShowInactivityWarning(false);
+
+    if (!session) return; // only track when logged in
+
+    // Show warning 1 minute before logout (at 9 min)
+    warningTimer.current = setTimeout(() => {
+      setShowInactivityWarning(true);
+    }, INACTIVITY_MS - 60_000);
+
+    // Auto-logout at 10 min
+    inactivityTimer.current = setTimeout(async () => {
+      setShowInactivityWarning(false);
+      await supabase.auth.signOut();
+    }, INACTIVITY_MS);
+  }, [session]);
+
+  // Listen to user activity events
+  useEffect(() => {
+    if (!session) {
+      clearTimeout(inactivityTimer.current);
+      clearTimeout(warningTimer.current);
+      setShowInactivityWarning(false);
+      return;
+    }
+    const events = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach(e => window.addEventListener(e, resetInactivityTimer, { passive: true }));
+    resetInactivityTimer(); // start timer immediately on login
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      clearTimeout(inactivityTimer.current);
+      clearTimeout(warningTimer.current);
+    };
+  }, [session, resetInactivityTimer]);
+
   const value = {
     session,
     user,
@@ -85,6 +129,8 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signOut,
     updateDisplayName,
+    showInactivityWarning,
+    resetInactivityTimer,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,14 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // ─── Unified payload builders ─────────────────────────────────────────────────
 
-export const buildInventoryQRPayload = (item, tag, unitIndex) => [
+export const buildInventoryQRPayload = (item, tag, unitIndex, serialNumber) => [
   '== GOLI ICT ASSET ==',
   `Asset Tag : ${tag || 'N/A'}`,
   `Unit #    : ${(unitIndex ?? 0) + 1}`,
-  `Item Code : ${item.item_code || item.itemCode || 'N/A'}`,
   `Item      : ${item.description || 'N/A'}`,
   `Category  : ${item.category || 'N/A'}`,
   `Location  : ${item.location || 'N/A'}`,
+  `Serial #  : ${serialNumber || 'N/A'}`,
   '====================',
 ].join('\n');
 
