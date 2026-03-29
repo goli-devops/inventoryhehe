@@ -366,7 +366,7 @@ const SuccessModal = ({ deployedAssets, sharedData, onClose }) => {
 const EMPTY_LINE = () => ({ inventoryItemId: '', quantity: 1, serialNumber: '', assignedTo: '', location: '', warranty: '', warrantyValue: '', warrantyUnit: 'Year/s' });
 
 const AssetForm = ({ onClose, onSuccess }) => {
-  const { inventory, deployAsset } = useWMS();
+  const { inventory, deployAsset, assets: existingAssets } = useWMS();
 
   const availableItems = useMemo(() =>
     inventory.filter(item => item.quantity > 0),
@@ -392,6 +392,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
   const [confirmStep,    setConfirmStep]    = useState(false);
   const [deployedAssets, setDeployedAssets] = useState(null);
   const [deployError,    setDeployError]    = useState(null); // { title, errors[] }
+  const [dupGroupFound,  setDupGroupFound]  = useState(null); // existing PO group match
 
   const handleSharedChange = (e) => {
     const { name, value } = e.target;
@@ -529,6 +530,30 @@ const AssetForm = ({ onClose, onSuccess }) => {
     }
 
     setDeployError(null);
+
+    // Check if a PO group with the same PO/PR/JOR already exists (non-cancelled)
+    const po = sharedData.poNumber?.trim();
+    const pr = sharedData.prNumber?.trim();
+    const jor = sharedData.jorNumber?.trim();
+    if (po || pr || jor) {
+      const dupGroup = (existingAssets || []).find(a => {
+        if (a.status === 'Cancelled') return false;
+        if (po && a.po_number && a.po_number === po) return true;
+        if (pr && a.pr_number && a.pr_number === pr) return true;
+        if (jor && a.jor_number && a.jor_number === jor) return true;
+        return false;
+      });
+      if (dupGroup) {
+        setDupGroupFound({
+          poNumber: dupGroup.po_number,
+          prNumber: dupGroup.pr_number,
+          jorNumber: dupGroup.jor_number,
+          existingPoKey: dupGroup.po_number || dupGroup.pr_number || dupGroup.jor_number,
+        });
+        return; // show dup group modal before confirming
+      }
+    }
+
     setConfirmStep(true);
   };
 
@@ -589,7 +614,24 @@ const AssetForm = ({ onClose, onSuccess }) => {
       }
     } catch (err) {
       console.error(err);
-      alert('Error deploying assets');
+      const msg = err?.message || String(err);
+      if (msg.includes('duplicate key') || msg.includes('23505')) {
+        setDeployError({
+          title: 'Deployment Failed — Duplicate Asset ID',
+          errors: [
+            'One or more asset tags from this inventory item have already been deployed previously.',
+            'This can happen when you cancel a deployment and re-deploy the same item with the same tags.',
+            'Try deploying again — the system will auto-generate unique IDs for this batch.',
+          ],
+          retryable: true,
+        });
+      } else {
+        setDeployError({
+          title: 'Deployment Error',
+          errors: [msg || 'An unexpected error occurred. Please try again.'],
+          retryable: true,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -597,6 +639,56 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1';
+
+  // Show duplicate PO group modal
+  if (dupGroupFound) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+          <AlertCircle size={22} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-yellow-800">Duplicate Reference Number Detected</p>
+            <p className="text-xs text-yellow-700 mt-1">
+              An existing active deployment already uses one of these reference numbers.
+            </p>
+            <div className="mt-2 p-2 bg-yellow-100 rounded-lg text-xs space-y-1">
+              {dupGroupFound.poNumber  && <p><span className="font-medium">PO#:</span> {dupGroupFound.poNumber}</p>}
+              {dupGroupFound.prNumber  && <p><span className="font-medium">PR#:</span> {dupGroupFound.prNumber}</p>}
+              {dupGroupFound.jorNumber && <p><span className="font-medium">JOR#:</span> {dupGroupFound.jorNumber}</p>}
+            </div>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-600">What would you like to do?</p>
+
+        <div className="space-y-2">
+          <button
+            onClick={() => { setDupGroupFound(null); setConfirmStep(true); }}
+            className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Add items to existing deployment</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Proceed and add these items under PO# {dupGroupFound.existingPoKey}
+              </p>
+            </div>
+            <span className="text-blue-600 text-lg">→</span>
+          </button>
+
+          <button
+            onClick={() => setDupGroupFound(null)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Go back and change reference numbers</p>
+              <p className="text-xs text-gray-500 mt-0.5">Update PO, PR, or JOR to a different number</p>
+            </div>
+            <span className="text-gray-400 text-lg">←</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Show deployment error modal
   if (deployError) {
@@ -606,7 +698,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
           <AlertCircle size={22} className="text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-bold text-red-700">{deployError.title}</p>
-            <p className="text-xs text-red-600 mt-0.5">Please fix the following issue{deployError.errors.length !== 1 ? 's' : ''} before proceeding:</p>
+            <p className="text-xs text-red-600 mt-0.5">{deployError.retryable ? 'Something went wrong during deployment:' : `Please fix the following issue${deployError.errors.length !== 1 ? 's' : ''} before proceeding:`}</p>
           </div>
         </div>
 
@@ -620,12 +712,22 @@ const AssetForm = ({ onClose, onSuccess }) => {
         </div>
 
         <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
-          <button
-            onClick={() => setDeployError(null)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-900 rounded-lg hover:bg-blue-800 transition-colors"
-          >
-            Go Back &amp; Fix
-          </button>
+          <div className="flex gap-2">
+            {deployError.retryable && (
+              <button
+                onClick={() => { setDeployError(null); handleSubmit(); }}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 transition-colors"
+              >
+                Retry Deployment
+              </button>
+            )}
+            <button
+              onClick={() => { setDeployError(null); setConfirmStep(false); }}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-900 rounded-lg hover:bg-blue-800 transition-colors"
+            >
+              Go Back &amp; Fix
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -855,6 +957,10 @@ const AssetForm = ({ onClose, onSuccess }) => {
                               className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">+</button>
                           </div>
                         </div>
+                        <div><label className={lbl}>Serial Number</label>
+                          <input type="text" value={line.serialNumber}
+                            onChange={e => updateLine(i, 'serialNumber', e.target.value)}
+                            placeholder="SN-xxxxx" className={inp} /></div>
                         <div><label className={lbl}>Assigned To <span className="text-xs text-gray-400">(overrides default)</span></label>
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}

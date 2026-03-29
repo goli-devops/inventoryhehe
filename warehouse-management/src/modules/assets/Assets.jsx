@@ -214,7 +214,14 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
 
 // ── Edit PO Group Form ────────────────────────────────────────────────────────
 const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
-  const { updateAsset } = useWMS();
+  const { updateAsset, deployAsset, inventory } = useWMS();
+  const first = groupAssets[0] || {};
+
+  const [activeTab, setActiveTab] = useState('assets');
+  const [loading, setLoading]     = useState(false);
+  const [saved, setSaved]         = useState(false);
+
+  // ── Tab 1: Per-asset rows ─────────────────────────────────────────────────
   const [rows, setRows] = useState(
     groupAssets.map(a => ({
       id:           a.id,
@@ -227,281 +234,304 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
       warranty:     a.warranty || '',
     }))
   );
-  const [loading, setLoading] = useState(false);
   const STATUSES = ['In Progress','Deployed','For Delivery','On Hold','Completed','Cancelled'];
-
   const updateRow = (i, field, value) =>
     setRows(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: value }; return n; });
 
-  const handleSave = async () => {
+  const handleSaveAssets = async () => {
     setLoading(true);
     try {
-      await Promise.all(rows.map(row =>
-        updateAsset(row.id, {
-          serial_number: row.serial_number,
-          assigned_to:   row.assigned_to,
-          location:      row.location,
-          status:        row.status,
-          warranty:      row.warranty,
-        })
-      ));
+      await Promise.all(rows.map(row => updateAsset(row.id, {
+        serial_number: row.serial_number,
+        assigned_to:   row.assigned_to,
+        location:      row.location,
+        status:        row.status,
+        warranty:      row.warranty,
+      })));
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (err) { alert('Failed to update assets'); }
+    finally { setLoading(false); }
+  };
+
+  // ── Tab 2: Reference Numbers ──────────────────────────────────────────────
+  const [refs, setRefs] = useState({
+    po_number:          first.po_number          || '',
+    pr_number:          first.pr_number          || '',
+    jor_number:         first.jor_number         || '',
+    accountability_seq: first.accountability_seq || '',
+    transmittal_seq:    first.transmittal_seq     || '',
+    rr_number:          first.rr_number           || '',
+    si_number:          first.si_number           || '',
+  });
+
+  const handleSaveRefs = async () => {
+    setLoading(true);
+    try {
+      await Promise.all(groupAssets.map(a => updateAsset(a.id, refs)));
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (err) { alert('Failed to update reference numbers'); }
+    finally { setLoading(false); }
+  };
+
+  // ── Tab 3: Add New Item ───────────────────────────────────────────────────
+  const availableItems = (inventory || []).filter(item => item.quantity > 0);
+  const [newItem, setNewItem] = useState({
+    inventoryItemId: '',
+    quantity: 1,
+    serialNumber: '',
+    assignedTo: first.assigned_to || '',
+    location:   first.location    || '',
+    status:     first.status      || 'In Progress',
+    warranty:   '',
+  });
+  const selectedItem = inventory?.find(i => i.id === newItem.inventoryItemId) || null;
+  const maxQty = selectedItem?.quantity || 1;
+
+  const handleAddItem = async () => {
+    if (!newItem.inventoryItemId) { alert('Please select an inventory item.'); return; }
+    setLoading(true);
+    try {
+      const item = selectedItem;
+      const assetTags = (() => {
+        let tags = item.asset_tags;
+        if (!tags) return [];
+        if (typeof tags === 'string') { try { tags = JSON.parse(tags); } catch { return []; } }
+        if (Array.isArray(tags)) return tags.filter(Boolean);
+        return Object.values(tags).filter(Boolean);
+      })();
+      await deployAsset({
+        inventoryItemId:   newItem.inventoryItemId,
+        quantity:          newItem.quantity,
+        description:       item.description,
+        category:          item.category,
+        purchasePrice:     item.unit_price || 0,
+        poNumber:          refs.po_number,
+        prNumber:          refs.pr_number,
+        jorNumber:         refs.jor_number,
+        accountabilitySeq: refs.accountability_seq,
+        transmittalSeq:    refs.transmittal_seq,
+        rrNumber:          refs.rr_number,
+        siNumber:          refs.si_number,
+        serialNumber:      newItem.serialNumber,
+        assignedTo:        newItem.assignedTo,
+        location:          newItem.location,
+        status:            newItem.status,
+        purchaseDate:      new Date().toISOString().split('T')[0],
+        warranty:          newItem.warranty,
+        inventoryAssetTag: assetTags[0] || '',
+        inventoryAssetTags: assetTags,
+      });
       onSuccess?.();
       onClose();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to update group');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert('Failed to add item to group'); }
+    finally { setLoading(false); }
   };
 
   const inp = 'w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500';
+  const lbl = 'block text-xs text-gray-500 mb-1';
+
+  const tabs = [
+    { id: 'assets',     label: `Assets (${rows.length})` },
+    { id: 'references', label: 'Reference Numbers' },
+    { id: 'additem',    label: '+ Add Item' },
+  ];
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-gray-500">
-        Edit details for all <strong>{rows.length}</strong> asset{rows.length !== 1 ? 's' : ''} in this PO group.
-        Changes save all items at once.
-      </p>
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {tabs.map(t => (
+          <button key={t.id} type="button" onClick={() => setActiveTab(t.id)}
+            className={`px-4 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === t.id
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Shared apply-to-all controls */}
-      <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
-        <p className="text-xs font-semibold text-blue-700 mb-2">Apply to all assets in group:</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Status</label>
-            <select onChange={e => rows.forEach((_, i) => updateRow(i, 'status', e.target.value))}
-              defaultValue="" className={inp}>
-              <option value="" disabled>— Set all —</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+      {/* ── Tab: Assets ── */}
+      {activeTab === 'assets' && (
+        <div className="space-y-3">
+          {/* Apply-to-all strip */}
+          <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <p className="text-xs font-semibold text-blue-700 mb-2">Apply to all:</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className={lbl}>Status</label>
+                <select onChange={e => rows.forEach((_, i) => updateRow(i, 'status', e.target.value))}
+                  defaultValue="" className={inp}>
+                  <option value="" disabled>— Set all —</option>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Location</label>
+                <input type="text" placeholder="Set all" onChange={e => rows.forEach((_, i) => updateRow(i, 'location', e.target.value))} className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Assigned To</label>
+                <input type="text" placeholder="Set all" onChange={e => rows.forEach((_, i) => updateRow(i, 'assigned_to', e.target.value))} className={inp} />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Location</label>
-            <input type="text" placeholder="Set all locations"
-              onChange={e => rows.forEach((_, i) => updateRow(i, 'location', e.target.value))}
-              className={inp} />
+
+          {/* Per-asset table */}
+          <div className="overflow-x-auto max-h-72 overflow-y-auto border border-gray-200 rounded-xl">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  {['Asset Tag','Description','Serial No.','Assigned To','Location','Status','Warranty'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((row, i) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-mono text-gray-500 whitespace-nowrap">
+                      {groupAssets[i]?.inventory_asset_tag || 'N/A'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-700 max-w-28 truncate">{row.description}</td>
+                    <td className="px-3 py-2"><input type="text" value={row.serial_number} onChange={e => updateRow(i,'serial_number',e.target.value)} className={inp} placeholder="SN-xxxxx" /></td>
+                    <td className="px-3 py-2"><input type="text" value={row.assigned_to} onChange={e => updateRow(i,'assigned_to',e.target.value)} className={inp} /></td>
+                    <td className="px-3 py-2"><input type="text" value={row.location} onChange={e => updateRow(i,'location',e.target.value)} className={inp} /></td>
+                    <td className="px-3 py-2">
+                      <select value={row.status} onChange={e => updateRow(i,'status',e.target.value)} className={inp}>
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2"><input type="text" value={row.warranty} onChange={e => updateRow(i,'warranty',e.target.value)} className={inp} placeholder="e.g. 1 Year/s" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Assigned To</label>
-            <input type="text" placeholder="Set all assignees"
-              onChange={e => rows.forEach((_, i) => updateRow(i, 'assigned_to', e.target.value))}
-              className={inp} />
+
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+            {saved && <p className="text-xs text-green-600 font-medium">✓ Saved!</p>}
+            {!saved && <span />}
+            <button onClick={handleSaveAssets} disabled={loading}
+              className="px-4 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
+              {loading ? 'Saving…' : `Save ${rows.length} Assets`}
+            </button>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Per-asset rows */}
-      <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-xl">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 sticky top-0">
-            <tr>
-              {['Asset ID','Description','Serial No.','Assigned To','Location','Status','Warranty'].map(h => (
-                <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.map((row, i) => (
-              <tr key={row.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.asset_id}</td>
-                <td className="px-3 py-2 text-gray-700 max-w-32 truncate">{row.description}</td>
-                <td className="px-3 py-2">
-                  <input type="text" value={row.serial_number}
-                    onChange={e => updateRow(i, 'serial_number', e.target.value)}
-                    className={inp} placeholder="SN-xxxxx" />
-                </td>
-                <td className="px-3 py-2">
-                  <input type="text" value={row.assigned_to}
-                    onChange={e => updateRow(i, 'assigned_to', e.target.value)}
-                    className={inp} placeholder="Employee" />
-                </td>
-                <td className="px-3 py-2">
-                  <input type="text" value={row.location}
-                    onChange={e => updateRow(i, 'location', e.target.value)}
-                    className={inp} placeholder="Location" />
-                </td>
-                <td className="px-3 py-2">
-                  <select value={row.status} onChange={e => updateRow(i, 'status', e.target.value)} className={inp}>
-                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input type="text" value={row.warranty}
-                    onChange={e => updateRow(i, 'warranty', e.target.value)}
-                    className={inp} placeholder="e.g. 1 Year/s" />
-                </td>
-              </tr>
+      {/* ── Tab: Reference Numbers ── */}
+      {activeTab === 'references' && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Update reference numbers for all <strong>{groupAssets.length}</strong> assets in this PO group at once.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: 'po_number',          label: 'PO Number' },
+              { key: 'pr_number',          label: 'PR Number' },
+              { key: 'jor_number',         label: 'JOR Number' },
+              { key: 'accountability_seq', label: 'Accountability Seq. No.' },
+              { key: 'transmittal_seq',    label: 'Transmittal Seq. No.' },
+              { key: 'rr_number',          label: 'Receiving Report No.' },
+              { key: 'si_number',          label: 'Sales Invoice No.' },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                <input type="text" value={refs[key]} onChange={e => setRefs(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+            {saved && <p className="text-xs text-green-600 font-medium">✓ Saved!</p>}
+            {!saved && <span />}
+            <button onClick={handleSaveRefs} disabled={loading}
+              className="px-4 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
+              {loading ? 'Saving…' : 'Update All Reference Numbers'}
+            </button>
+          </div>
+        </div>
+      )}
 
-      <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
-        <button onClick={onClose}
-          className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
-          Cancel
-        </button>
-        <button onClick={handleSave} disabled={loading}
-          className="px-4 py-2 text-sm font-semibold text-white bg-blue-900 rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
-          {loading ? 'Saving…' : `Save All ${rows.length} Assets`}
-        </button>
-      </div>
+      {/* ── Tab: Add Item ── */}
+      {activeTab === 'additem' && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Add a new inventory item to this PO group (<strong>{refs.po_number || 'no PO#'}</strong>).
+            It will inherit the same reference numbers.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Inventory Item <span className="text-red-500">*</span></label>
+            <select value={newItem.inventoryItemId}
+              onChange={e => setNewItem(p => ({ ...p, inventoryItemId: e.target.value, quantity: 1 }))}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}>
+              <option value="" disabled>— Choose an inventory item —</option>
+              {availableItems.map(inv => (
+                <option key={inv.id} value={inv.id}>
+                  [{inv.item_code}] {inv.description} — {inv.quantity} available
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedItem && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={lbl}>Quantity (max {maxQty})</label>
+                <input type="number" value={newItem.quantity} min={1} max={maxQty}
+                  onChange={e => setNewItem(p => ({ ...p, quantity: Math.max(1, Math.min(parseInt(e.target.value)||1, maxQty)) }))}
+                  className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Serial Number</label>
+                <input type="text" value={newItem.serialNumber}
+                  onChange={e => setNewItem(p => ({ ...p, serialNumber: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+                  placeholder="Scan or type" className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Assigned To</label>
+                <input type="text" value={newItem.assignedTo}
+                  onChange={e => setNewItem(p => ({ ...p, assignedTo: e.target.value }))}
+                  className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Location</label>
+                <input type="text" value={newItem.location}
+                  onChange={e => setNewItem(p => ({ ...p, location: e.target.value }))}
+                  className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Status</label>
+                <select value={newItem.status}
+                  onChange={e => setNewItem(p => ({ ...p, status: e.target.value }))}
+                  className={inp}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Warranty</label>
+                <input type="text" value={newItem.warranty}
+                  onChange={e => setNewItem(p => ({ ...p, warranty: e.target.value }))}
+                  placeholder="e.g. 1 Year/s" className={inp} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t border-gray-200">
+            <button onClick={handleAddItem} disabled={loading || !newItem.inventoryItemId}
+              className="px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors">
+              {loading ? 'Deploying…' : 'Add to This PO Group'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-
-// ── Group-level PDF helpers ────────────────────────────────────────────────────
-const loadPdfScript = (src) => new Promise((res, rej) => {
-  if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
-  const s = document.createElement('script');
-  s.src = src; s.onload = res; s.onerror = rej;
-  document.head.appendChild(s);
-});
-
-const getGroupLogoBase64 = () => new Promise((resolve) => {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
-    c.getContext('2d').drawImage(img, 0, 0);
-    resolve(c.toDataURL('image/png'));
-  };
-  img.onerror = () => resolve(null);
-  img.src = '/goli_logo.jpg';
-});
-
-const printGroupAccountability = async (groupAssets) => {
-  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W = 210, M = 14;
-  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
-  const first = groupAssets[0] || {};
-
-  const logoData = await getGroupLogoBase64();
-  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
-
-  let y = 14;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
-  doc.text('ICT DEPARTMENT', W / 2, y, { align: 'center' }); y += 7;
-  doc.setFontSize(12);
-  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 4;
-
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.text('N\u00ba', W - 38, 12);
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
-  doc.text(String(first.accountability_seq || first.po_number || ''), W - 32, 12);
-  doc.setTextColor(0, 0, 0);
-
-  y += 4;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
-  doc.line(M + 12, y + 0.5, 110, y + 0.5);
-  doc.text(first.jor_number || '', M + 13, y - 0.5);
-  y += 7;
-  doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
-  doc.line(M + 12, y + 0.5, 120, y + 0.5);
-  doc.text(first.assigned_to || '', M + 13, y - 0.5);
-  doc.setFont('helvetica', 'bold'); doc.text('Position:', 122, y); doc.setFont('helvetica', 'normal');
-  doc.line(134, y + 0.5, W - M, y + 0.5);
-  y += 7;
-  doc.setFont('helvetica', 'bold'); doc.text('Date:', M, y); doc.setFont('helvetica', 'normal');
-  doc.line(M + 11, y + 0.5, 80, y + 0.5); doc.text(today, M + 12, y - 0.5);
-  y += 6;
-
-  // Group rows by description + join tags
-  const grouped = {};
-  groupAssets.forEach(a => {
-    const key = a.description || 'Unknown';
-    if (!grouped[key]) grouped[key] = { tags: [], qty: 0 };
-    const tag = a.inventory_asset_tag?.trim();
-    if (tag && tag !== 'N/A') grouped[key].tags.push(tag);
-    grouped[key].qty++;
-  });
-  const tableRows = Object.entries(grouped).map(([desc, v]) => [
-    today, v.tags.length > 0 ? v.tags.join(', ') : 'N/A', desc, String(v.qty),
-  ]);
-  while (tableRows.length < 10) tableRows.push(['', '', '', '']);
-
-  doc.autoTable({
-    startY: y,
-    head: [['DATE', 'ASSET TAG', 'PARTICULARS', 'QTY.']],
-    body: tableRows,
-    styles: { fontSize: 8, cellPadding: 2.5, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
-    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10 },
-    bodyStyles: { minCellHeight: 9, lineWidth: 0.2, lineColor: [0,0,0] },
-    columnStyles: { 0:{cellWidth:22,halign:'center'}, 1:{cellWidth:30,halign:'center'}, 2:{cellWidth:116}, 3:{cellWidth:14,halign:'center'} },
-    tableLineColor: [0,0,0], tableLineWidth: 0.3, margin: { left: M, right: M },
-  });
-
-  const fy = doc.lastAutoTable.finalY + 6;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-  doc.text('I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.', M, fy, { maxWidth: W - M * 2 });
-  const sigY = fy + 18;
-  [{x:M,label:'APPROVED BY:',copy:'Original - Accounting'},{x:83,label:'ISSUED BY:',copy:'Duplicate - Audit'},{x:150,label:'SIGNATURE OF EMPLOYEE',copy:'Triplicate - Personal File'}].forEach(col => {
-    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text(col.label, col.x, sigY);
-    doc.setFont('helvetica','normal'); doc.line(col.x, sigY+12, col.x+50, sigY+12);
-    doc.setFontSize(7); doc.text(col.copy, col.x, sigY+16);
-  });
-  doc.save(`Accountability_Form_PO${first.po_number || ''}.pdf`);
-};
-
-const printGroupTransmittal = async (groupAssets) => {
-  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  await loadPdfScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W = 210, M = 20;
-  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
-  const first = groupAssets[0] || {};
-
-  const logoData = await getGroupLogoBase64();
-  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
-
-  let y = 14;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
-  doc.text('CORPORATE-ICT', W / 2, y, { align: 'center' }); y += 7;
-  doc.setFontSize(12); doc.text('Transmittal Slip', W / 2, y, { align: 'center' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('N\u00ba', W - 38, y - 1);
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
-  doc.text(String(first.transmittal_seq || first.po_number || ''), W - 32, y);
-  doc.setTextColor(0, 0, 0); y += 10;
-
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.text('Date:', W - 55, y); doc.line(W - 47, y + 0.5, W - M, y + 0.5); doc.text(today, W - 46, y - 0.5); y += 8;
-
-  const itemMap = {};
-  groupAssets.forEach(a => {
-    const key = a.description || 'Unknown';
-    if (!itemMap[key]) itemMap[key] = { qty: 0, tags: [] };
-    const tag = a.inventory_asset_tag?.trim();
-    if (tag && tag !== 'N/A') itemMap[key].tags.push(tag);
-    itemMap[key].qty++;
-  });
-  const tableRows = Object.entries(itemMap).map(([desc, v]) => [desc, v.tags.length > 0 ? v.tags.join(', ') : 'N/A', String(v.qty)]);
-  while (tableRows.length < 10) tableRows.push(['', '', '']);
-
-  doc.autoTable({
-    startY: y,
-    head: [['Item Description', 'Asset Tag', 'Qty']],
-    body: tableRows,
-    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
-    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
-    bodyStyles: { minCellHeight: 10, lineWidth: 0.2, lineColor: [0,0,0] },
-    columnStyles: { 0:{cellWidth:104}, 1:{cellWidth:44,halign:'center'}, 2:{cellWidth:22,halign:'center'} },
-    tableLineColor: [0,0,0], tableLineWidth: 0.3, margin: { left: M, right: M },
-  });
-
-  const fy = doc.lastAutoTable.finalY + 12;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.line(M, fy, M + 42, fy); doc.text('Account', M + 10, fy + 5);
-  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
-  doc.save(`Transmittal_Slip_PO${first.po_number || ''}.pdf`);
-};
 
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
 const FilterPanel = ({ filters, onChange, onReset, categories }) => {
@@ -735,6 +765,21 @@ const Assets = () => {
           <FilterPanel filters={filters} onChange={handleFilterChange} onReset={resetFilters} categories={categories} />
         )}
 
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Total Assets',   value: assets.length,       color: 'text-gray-800' },
+            { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
+            { label: 'Deployed',       value: inUse,               color: 'text-green-600' },
+            { label: 'In Progress',    value: maintenance,         color: 'text-blue-600' },
+            { label: 'Cancelled',      value: cancelled,           color: 'text-red-600' },
+          ].map(({ label, value, color }) => (
+            <Card key={label} padding="p-4">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            </Card>
+          ))}
+        </div>
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (

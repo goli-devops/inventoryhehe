@@ -42,12 +42,15 @@ const AssetService = {
       const tag = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
       const hasTag = !!tag;
 
-      // If inventory item has an asset tag → use it as asset_id and generate QR
-      // If no tag → use a unique generated ID for DB uniqueness, but mark as NOT tagged
+      // asset_id must be globally unique — append a random suffix so redeployment of the
+      // same inventory tag never collides with the cancelled record.
+      // The display tag is stored separately in inventory_asset_tag.
+      const uniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
       const assetID = hasTag
-        ? tag
+        ? `${tag}-${uniqueSuffix}`
         : this.generateAssetID(assetData.category, assetData.unitIndex ?? 0);
-      const qrData = hasTag ? this.generateQRCode(assetID) : { qr_code: null, qr_url: null };
+      // QR code still encodes the clean inventory tag (no suffix) for scanning
+      const qrData = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
 
       const newAsset = {
         asset_id:           assetID,
@@ -87,10 +90,12 @@ const AssetService = {
       const rows = assetsDataArray.map((assetData, idx) => {
         const tag    = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
         const hasTag = !!tag;
+        const uniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
         const assetID = hasTag
-          ? tag
+          ? `${tag}-${uniqueSuffix}`
           : this.generateAssetID(assetData.category, assetData.unitIndex ?? idx);
-        const qrData = hasTag ? this.generateQRCode(assetID) : { qr_code: null, qr_url: null };
+        // QR encodes the clean tag without suffix
+        const qrData = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
         return {
           asset_id:           assetID,
           description:        assetData.description,
@@ -131,72 +136,44 @@ const AssetService = {
     }
   },
 
+  // Batch cancel — fetches all assets at once, updates all at once in one DB call
   async cancelBatch(ids, reason, user) {
-  try {
-    // 1. Fetch all assets in one query
-    const { data: assets, error: fetchErr } = await supabase
-      .from('assets')
-      .select('*')
-      .in('id', ids);
-
-    if (fetchErr) throw fetchErr;
-    if (!assets || assets.length === 0) return [];
-
-    const now = new Date().toISOString();
-
-    // 2. Update each asset safely (NO UPSERT)
-    const updatePromises = assets.map(asset => {
-      const updatedHistory = [
-        ...(asset.history || []),
-        {
-          action: 'Cancelled',
-          date: now,
-          user,
-          reason,
-          field: 'Status',
-          from: asset.status,
-          to: 'Cancelled',
-          details: `Asset cancelled. Reason: ${reason}`,
-        },
-      ];
-
-      return supabase
+    try {
+      // Fetch all assets in one query
+      const { data: assets, error: fetchErr } = await supabase
         .from('assets')
-        .update({
-          status: 'Cancelled',
-          history: updatedHistory,
-        })
-        .eq('id', asset.id)
-        .select()
-        .single();
-    });
+        .select('*')
+        .in('id', ids);
+      if (fetchErr) throw fetchErr;
 
-    const results = await Promise.all(updatePromises);
+      const now = new Date().toISOString();
+      const updates = assets.map(asset => ({
+        id: asset.id,
+        status: 'Cancelled',
+        history: [...(asset.history || []), {
+          action: 'Cancelled', date: now, user, reason,
+          field: 'Status', from: asset.status, to: 'Cancelled',
+          details: `Asset cancelled. Reason: ${reason}`,
+        }],
+      }));
 
-    // 3. Handle errors per row (important for batch ops)
-    const updatedAssets = [];
-    results.forEach((res, index) => {
-      if (res.error) {
-        console.error('Failed to update asset:', assets[index].id, res.error);
-      } else {
-        updatedAssets.push(res.data);
-      }
-    });
+      // Upsert all at once — single DB round-trip
+      const { data, error } = await supabase
+        .from('assets')
+        .upsert(updates, { onConflict: 'id' })
+        .select();
+      if (error) throw error;
 
-    // 4. Return same structure you already use (for inventory rollback)
-    return updatedAssets.map(updated => {
-      const original = assets.find(a => a.id === updated.id);
-      return {
-        asset: updated,
-        inventoryItemId: original?.inventory_item_id || null,
-      };
-    });
-
-  } catch (error) {
-    console.error('Error batch cancelling assets:', error);
-    return [];
-  }
-},
+      // Return map of id → { asset, inventoryItemId } for inventory restoration
+      return (data || []).map(updated => {
+        const original = assets.find(a => a.id === updated.id);
+        return { asset: updated, inventoryItemId: original?.inventory_item_id || null };
+      });
+    } catch (error) {
+      console.error('Error batch cancelling assets:', error);
+      return [];
+    }
+  },
 
 
   async getAll() {
