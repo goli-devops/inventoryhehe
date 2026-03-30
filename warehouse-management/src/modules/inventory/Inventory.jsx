@@ -105,6 +105,21 @@ const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
   if (!item) return null;
   return (
     <div className="space-y-5">
+      {/* Operation loading overlay */}
+      {operationLoading && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 flex flex-col items-center gap-4 min-w-64">
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-700 animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-gray-800">{operationLoading.label || 'Processing…'}</p>
+              <p className="text-xs text-gray-400 mt-1">{operationLoading.sub || 'Please wait'}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
         <Trash2 size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
         <div>
@@ -235,6 +250,7 @@ const EMPTY_FILTERS = { itemCode: '', category: '', supplier: '', status: '', da
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Inventory = () => {
   const { inventory: rawInventory, getStats, deleteInventoryItem, loading } = useWMS();
+  const [operationLoading, setOperationLoading] = React.useState(null);
   const { categories } = useSettings();
   const inventory = rawInventory ?? [];
   const stats = getStats();
@@ -414,10 +430,10 @@ const Inventory = () => {
         </Card>
         <Card padding="p-4">
           <p className="text-xs text-gray-500 mb-1">
-            {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Inventory Value'}
+            {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Value'}
           </p>
           <p className="text-2xl font-bold text-blue-700">
-            ₱{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+            ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
           </p>
         </Card>
       </div>
@@ -519,7 +535,7 @@ const Inventory = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.unit || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      ₱{(item.unit_price || item.unitPrice || 0).toLocaleString()}
+                      ${(item.unit_price || item.unitPrice || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.location || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.supplier || '—'}</td>
@@ -581,7 +597,10 @@ const Inventory = () => {
 
       {/* Modals */}
       <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Add Inventory Item" size="lg">
-        <InventoryForm onClose={() => setIsCreateModalOpen(false)} onSuccess={() => {}} />
+        <InventoryForm
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => { setIsCreateModalOpen(false); }}
+        />
       </Modal>
 
       <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Inventory Item Details" size="lg">

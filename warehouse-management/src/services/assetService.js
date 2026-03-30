@@ -19,13 +19,13 @@ const FIELD_LABELS = {
 };
 
 const AssetService = {
-  generateAssetID(category, unitIndex = 0) {
-    // Use high-resolution timestamp + random + unitIndex for guaranteed uniqueness
-    const categoryCode = (category || 'UNK').substring(0, 3).toUpperCase();
-    const ts   = Date.now().toString(36).toUpperCase().slice(-5); // base36 timestamp
-    const rand = Math.floor(Math.random() * 46656).toString(36).toUpperCase().padStart(3, '0');
-    const idx  = unitIndex.toString(36).toUpperCase().padStart(2, '0');
-    return `${categoryCode}-${ts}-${rand}${idx}`; // e.g. PRI-K3X2A-Z4F01 — guaranteed unique
+  generateAssetID() {
+    // Always generate a unique 5-digit alphanumeric ID regardless of tags/category
+    // This ensures every deployment record has a truly unique DB key
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // unambiguous chars
+    let id = '';
+    for (let i = 0; i < 5; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return id; // e.g. "K3X2A", "PQ7NR"
   },
 
   generateQRCode(assetID) {
@@ -42,15 +42,10 @@ const AssetService = {
       const tag = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
       const hasTag = !!tag;
 
-      // asset_id must be globally unique — append a random suffix so redeployment of the
-      // same inventory tag never collides with the cancelled record.
-      // The display tag is stored separately in inventory_asset_tag.
-      const uniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-      const assetID = hasTag
-        ? `${tag}-${uniqueSuffix}`
-        : this.generateAssetID(assetData.category, assetData.unitIndex ?? 0);
-      // QR code still encodes the clean inventory tag (no suffix) for scanning
-      const qrData = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
+      // asset_id is always a unique generated ID — never the inventory tag
+      // inventory_asset_tag stores the display tag for UI and QR scanning
+      const assetID = this.generateAssetID();
+      const qrData  = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
 
       const newAsset = {
         asset_id:           assetID,
@@ -59,7 +54,7 @@ const AssetService = {
         po_number:          assetData.poNumber          || '',
         pr_number:          assetData.prNumber          || '',
         jor_number:         assetData.jorNumber         || '',
-        serial_number:      assetData.serialNumber      || '',
+        serial_number:      assetData.serialNumber?.trim() || null,
         accountability_seq: assetData.accountabilitySeq || '',
         transmittal_seq:    assetData.transmittalSeq    || '',
         rr_number:          assetData.rrNumber          || '',
@@ -90,12 +85,8 @@ const AssetService = {
       const rows = assetsDataArray.map((assetData, idx) => {
         const tag    = assetData.inventoryAssetTag?.trim()?.substring(0, 90);
         const hasTag = !!tag;
-        const uniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-        const assetID = hasTag
-          ? `${tag}-${uniqueSuffix}`
-          : this.generateAssetID(assetData.category, assetData.unitIndex ?? idx);
-        // QR encodes the clean tag without suffix
-        const qrData = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
+        const assetID = this.generateAssetID();
+        const qrData  = hasTag ? this.generateQRCode(tag) : { qr_code: null, qr_url: null };
         return {
           asset_id:           assetID,
           description:        assetData.description,
@@ -103,7 +94,7 @@ const AssetService = {
           po_number:          assetData.poNumber          || '',
           pr_number:          assetData.prNumber          || '',
           jor_number:         assetData.jorNumber         || '',
-          serial_number:      assetData.serialNumber      || '',
+          serial_number:      assetData.serialNumber?.trim() || null,
           accountability_seq: assetData.accountabilitySeq || '',
           transmittal_seq:    assetData.transmittalSeq    || '',
         rr_number:          assetData.rrNumber          || '',
@@ -157,12 +148,19 @@ const AssetService = {
         }],
       }));
 
-      // Upsert all at once — single DB round-trip
-      const { data, error } = await supabase
-        .from('assets')
-        .upsert(updates, { onConflict: 'id' })
-        .select();
-      if (error) throw error;
+      // Update each asset individually — upsert would null-out required columns
+      const results = [];
+      for (const u of updates) {
+        const { data: d, error: e } = await supabase
+          .from('assets')
+          .update({ status: u.status, history: u.history })
+          .eq('id', u.id)
+          .select()
+          .single();
+        if (e) throw e;
+        if (d) results.push(d);
+      }
+      const data = results;
 
       // Return map of id → { asset, inventoryItemId } for inventory restoration
       return (data || []).map(updated => {

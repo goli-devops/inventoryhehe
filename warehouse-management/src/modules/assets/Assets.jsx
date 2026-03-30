@@ -3,7 +3,7 @@ import {
   Plus, Filter, Scan, Eye, Edit, Trash2, Ban, Printer,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
   Search, ShieldAlert, Square, CheckSquare,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, CheckCircle, AlertCircle,
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
@@ -32,7 +32,7 @@ const exportToExcel = async (rows) => {
   const data = [
     ['PO Number','Asset ID (Tag)','Description','Category','Serial No.','Location','Assigned To','Status','Purchase Date','Purchase Price','Warranty'],
     ...rows.map(a => [
-      a.po_number || '', a.asset_id || '', a.description || '', a.category || '',
+      a.po_number?.startsWith('__NOPO__') ? '' : (a.po_number || ''), a.inventory_asset_tag || a.asset_id || '', a.description || '', a.category || '',
       a.serial_number || '', a.location || '',
       a.assigned_to || '', a.status || '',
       a.purchase_date ? new Date(a.purchase_date).toLocaleDateString() : '',
@@ -68,6 +68,180 @@ const exportToPDF = async (rows) => {
     alternateRowStyles: { fillColor: [239, 246, 255] },
   });
   doc.save(`Assets_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+// ── Print Group Accountability Form ──────────────────────────────────────────
+const getLogoDet = () => new Promise((resolve) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    resolve(canvas.toDataURL('image/png'));
+  };
+  img.onerror = () => resolve(null);
+  img.src = '/goli_logo.jpg';
+});
+
+const printGroupAccountability = async (groupAssets) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 14;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  const first = groupAssets[0] || {};
+
+  const logoData = await getLogoDet();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
+
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text('ICT DEPARTMENT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(12);
+  doc.text('ACCOUNTABILITY FORM', W / 2, y, { align: 'center' }); y += 4;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W - 38, 12);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(first.accountability_seq || ''), W - 32, 12);
+  doc.setTextColor(0, 0, 0);
+
+  y += 4;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 110, y + 0.5);
+  doc.text(first.jor_number || '', M + 13, y - 0.5);
+  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 12, y + 0.5, 120, y + 0.5);
+  doc.text(first.assigned_to || '', M + 13, y - 0.5);
+  doc.setFont('helvetica', 'bold'); doc.text('Position:', 122, y); doc.setFont('helvetica', 'normal');
+  doc.line(134, y + 0.5, W - M, y + 0.5);
+  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.text('Date:', M, y); doc.setFont('helvetica', 'normal');
+  doc.line(M + 11, y + 0.5, 80, y + 0.5);
+  doc.text(today, M + 12, y - 0.5);
+  y += 6;
+
+  const groupedAcc = {};
+  groupAssets.forEach(a => {
+    const key = a.description || 'Unknown';
+    if (!groupedAcc[key]) groupedAcc[key] = { tags: [], qty: 0 };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') groupedAcc[key].tags.push(tag);
+    groupedAcc[key].qty++;
+  });
+  const tableRows = Object.entries(groupedAcc).map(([desc, v]) => [
+    today,
+    v.tags.length > 0 ? v.tags.join(', ') : 'N/A',
+    desc,
+    String(v.qty),
+  ]);
+  while (tableRows.length < 10) tableRows.push(['', '', '', '']);
+
+  doc.autoTable({
+    startY: y,
+    head: [['DATE', 'ASSET TAG', 'PARTICULARS', 'QTY.']],
+    body: tableRows,
+    styles: { fontSize: 8, cellPadding: 2.5, lineColor: [0,0,0], lineWidth: 0.25, valign: 'middle' },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center', valign: 'middle', minCellHeight: 10 },
+    bodyStyles: { minCellHeight: 9, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: {
+      0: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 116 },
+      3: { cellWidth: 14, halign: 'center' },
+    },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3,
+    margin: { left: M, right: M },
+  });
+
+  const fy = doc.lastAutoTable.finalY + 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.text('I hold myself responsible for the use and safekeeping of the above item and return the same when required by\nthis company or pay for them in case of loss.', M, fy, { maxWidth: W - M * 2 });
+
+  const sigY = fy + 18;
+  [
+    { x: M,   label: 'APPROVED BY:',         copy: 'Original - Accounting' },
+    { x: 83,  label: 'ISSUED BY:',            copy: 'Duplicate - Audit' },
+    { x: 150, label: 'SIGNATURE OF EMPLOYEE', copy: 'Triplicate - Personal File' },
+  ].forEach(col => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text(col.label, col.x, sigY);
+    doc.setFont('helvetica', 'normal'); doc.line(col.x, sigY + 12, col.x + 50, sigY + 12);
+    doc.setFontSize(7); doc.text(col.copy, col.x, sigY + 16);
+  });
+
+  doc.save(`Accountability_${first.po_number || first.asset_id || 'form'}.pdf`);
+};
+
+// ── Print Group Transmittal Slip ──────────────────────────────────────────────
+const printGroupTransmittal = async (groupAssets) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 20;
+  const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  const first = groupAssets[0] || {};
+
+  const logoData = await getLogoDet();
+  if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
+
+  let y = 14;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+  doc.text('CORPORATE-ICT', W / 2, y, { align: 'center' }); y += 7;
+  doc.setFontSize(12);
+  doc.text('Transmittal Slip', W / 2, y, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('N\u00ba', W - 38, y - 1);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(200, 0, 0); doc.setFontSize(13);
+  doc.text(String(first.transmittal_seq || ''), W - 32, y);
+  doc.setTextColor(0, 0, 0); y += 10;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Date:', W - 55, y);
+  doc.line(W - 47, y + 0.5, W - M, y + 0.5);
+  doc.text(today, W - 46, y - 0.5); y += 8;
+
+  const itemMap = {};
+  groupAssets.forEach(a => {
+    const key = a.description || 'Unknown';
+    if (!itemMap[key]) itemMap[key] = { qty: 0, tags: [] };
+    const tag = a.inventory_asset_tag?.trim();
+    if (tag && tag !== 'N/A') itemMap[key].tags.push(tag);
+    itemMap[key].qty++;
+  });
+  const tableRows = Object.entries(itemMap).map(([desc, v]) => [
+    desc,
+    v.tags.length > 0 ? v.tags.join(', ') : 'N/A',
+    String(v.qty),
+  ]);
+  while (tableRows.length < 10) tableRows.push(['', '', '']);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Item Description', 'Asset Tag', 'Qty']],
+    body: tableRows,
+    styles: { fontSize: 9, cellPadding: 3.5, lineColor: [0,0,0], lineWidth: 0.25 },
+    headStyles: { fillColor: [255,255,255], textColor: [0,0,0], fontStyle: 'bold', lineWidth: 0.3, lineColor: [0,0,0], halign: 'center' },
+    bodyStyles: { minCellHeight: 10, lineWidth: 0.2, lineColor: [0,0,0] },
+    columnStyles: {
+      0: { cellWidth: 104 },
+      1: { cellWidth: 44, halign: 'center' },
+      2: { cellWidth: 22, halign: 'center' },
+    },
+    tableLineColor: [0,0,0], tableLineWidth: 0.3,
+    margin: { left: M, right: M },
+  });
+
+  const fy = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.line(M, fy, M + 42, fy); doc.text('Account', M + 10, fy + 5);
+  doc.line(W - M - 58, fy, W - M, fy); doc.text('Received by/ Date / Time', W - M - 58, fy + 5);
+
+  doc.save(`Transmittal_${first.po_number || first.asset_id || 'slip'}.pdf`);
 };
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -183,13 +357,29 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
           </p>
         </div>
       </div>
-      <div className="max-h-40 overflow-y-auto space-y-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-        {assets.map(a => (
-          <div key={a.id} className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-gray-700 w-28 flex-shrink-0">{a.asset_id}</span>
-            <span className="text-gray-500 truncate">{a.description}</span>
-          </div>
-        ))}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="max-h-60 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Asset Tag</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Item Description</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Category</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {assets.map(a => (
+                <tr key={a.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-mono font-semibold text-blue-700 whitespace-nowrap">
+                    {a.inventory_asset_tag?.trim() || <span className="text-gray-400 font-normal">N/A</span>}
+                  </td>
+                  <td className="px-3 py-2 text-gray-700">{a.description}</td>
+                  <td className="px-3 py-2 text-gray-500">{a.category}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -213,13 +403,14 @@ const BulkCancelModal = ({ assets, onConfirm, onCancel }) => {
 
 
 // ── Edit PO Group Form ────────────────────────────────────────────────────────
-const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
+const EditGroupForm = ({ groupAssets, onClose, onSuccess, setOperationLoading, allAssets }) => {
   const { updateAsset, deployAsset, inventory } = useWMS();
   const first = groupAssets[0] || {};
 
   const [activeTab, setActiveTab] = useState('assets');
   const [loading, setLoading]     = useState(false);
   const [saved, setSaved]         = useState(false);
+  const [reactivationError, setReactivationError] = useState(null);
 
   // ── Tab 1: Per-asset rows ─────────────────────────────────────────────────
   const [rows, setRows] = useState(
@@ -240,17 +431,68 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
 
   const handleSaveAssets = async () => {
     setLoading(true);
+    setOperationLoading({ type: 'save', count: rows.length });
     try {
-      await Promise.all(rows.map(row => updateAsset(row.id, {
-        serial_number: row.serial_number,
-        assigned_to:   row.assigned_to,
-        location:      row.location,
-        status:        row.status,
-        warranty:      row.warranty,
-      })));
-      setSaved(true); setTimeout(() => setSaved(false), 3000);
-    } catch (err) { alert('Failed to update assets'); }
-    finally { setLoading(false); }
+      // Check if any asset is being reactivated from Cancelled
+      const reactivations = [];
+      for (const row of rows) {
+        const currentAsset = groupAssets.find(a => a.id === row.id);
+        if (currentAsset?.status === 'Cancelled' && row.status !== 'Cancelled') {
+          // Check if this asset's inventory item is already deployed elsewhere
+          const invItemId = currentAsset.inventory_item_id;
+          const assetTag = currentAsset.inventory_asset_tag;
+          
+          if (invItemId && assetTag) {
+            // Find if this asset tag is already used in another active deployment
+            const duplicate = (allAssets || []).find(a => 
+              a.id !== currentAsset.id &&
+              a.inventory_asset_tag === assetTag &&
+              a.status !== 'Cancelled'
+            );
+            
+            if (duplicate) {
+              reactivations.push({
+                assetTag,
+                description: duplicate.description,
+                poNumber: duplicate.po_number,
+                prNumber: duplicate.pr_number,
+                jorNumber: duplicate.jor_number,
+                accountabilitySeq: duplicate.accountability_seq,
+                transmittalSeq: duplicate.transmittal_seq,
+                status: duplicate.status,
+              });
+            }
+          }
+        }
+      }
+      
+      // If there are conflicts, show error modal and stop
+      if (reactivations.length > 0) {
+        setReactivationError(reactivations);
+        return;
+      }
+      
+      // Process sequentially to ensure each update sees the previous status change
+      for (const row of rows) {
+        await updateAsset(row.id, {
+          assigned_to:   row.assigned_to,
+          location:      row.location,
+          status:        row.status,
+          warranty:      row.warranty,
+        });
+      }
+      setSaved(true);
+      setTimeout(() => {
+        onSuccess?.();
+        onClose();
+      }, 800);
+    } catch (err) { 
+      alert('Failed to update assets: ' + (err.message || err)); 
+    }
+    finally { 
+      setLoading(false);
+      setOperationLoading(null);
+    }
   };
 
   // ── Tab 2: Reference Numbers ──────────────────────────────────────────────
@@ -266,11 +508,19 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
 
   const handleSaveRefs = async () => {
     setLoading(true);
+    setOperationLoading({ type: 'save', count: groupAssets.length });
     try {
       await Promise.all(groupAssets.map(a => updateAsset(a.id, refs)));
-      setSaved(true); setTimeout(() => setSaved(false), 3000);
+      setSaved(true);
+      setTimeout(() => {
+        onSuccess?.();
+        onClose();
+      }, 800);
     } catch (err) { alert('Failed to update reference numbers'); }
-    finally { setLoading(false); }
+    finally { 
+      setLoading(false);
+      setOperationLoading(null);
+    }
   };
 
   // ── Tab 3: Add New Item ───────────────────────────────────────────────────
@@ -336,6 +586,92 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
     { id: 'additem',    label: '+ Add Item' },
   ];
 
+  // Show reactivation error modal
+  if (reactivationError) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle size={22} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-red-700">Unable to Change Status</p>
+            <p className="text-xs text-red-600 mt-1">
+              The following item{reactivationError.length !== 1 ? 's are' : ' is'} already in an active deployment
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {reactivationError.map((item, i) => (
+            <div key={i} className="p-4 bg-white border border-red-200 rounded-xl space-y-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{item.description || 'Unknown Item'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Asset Tag: <span className="font-mono font-semibold text-blue-700">{item.assetTag}</span></p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  item.status === 'Deployed' ? 'bg-green-100 text-green-700' :
+                  item.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {item.status}
+                </span>
+              </div>
+              
+              {(item.poNumber || item.prNumber || item.jorNumber || item.accountabilitySeq || item.transmittalSeq) && (
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-1.5">Reference Numbers:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {item.poNumber && (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded">
+                        PO# {item.poNumber}
+                      </span>
+                    )}
+                    {item.prNumber && (
+                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded">
+                        PR# {item.prNumber}
+                      </span>
+                    )}
+                    {item.jorNumber && (
+                      <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded">
+                        JOR# {item.jorNumber}
+                      </span>
+                    )}
+                    {item.accountabilitySeq && (
+                      <span className="px-2 py-0.5 bg-orange-50 text-orange-700 text-xs font-medium rounded">
+                        ACC# {item.accountabilitySeq}
+                      </span>
+                    )}
+                    {item.transmittalSeq && (
+                      <span className="px-2 py-0.5 bg-pink-50 text-pink-700 text-xs font-medium rounded">
+                        TRS# {item.transmittalSeq}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 bg-red-100 border border-red-200 rounded-lg">
+          <p className="text-xs text-white-800">
+            <strong>Note:</strong> These items cannot be re-deployed because they are currently deployed elsewhere. 
+            Please cancel the existing deployment first or use different inventory items.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-2 border-t border-gray-200">
+          <button
+            onClick={() => setReactivationError(null)}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-900 rounded-lg hover:bg-blue-800 transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Tab bar */}
@@ -383,7 +719,7 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
             <table className="w-full text-xs">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  {['Asset Tag','Description','Serial No.','Assigned To','Location','Status','Warranty'].map(h => (
+                  {['Asset Tag','Description','Assigned To','Location','Status','Warranty'].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -395,7 +731,6 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
                       {groupAssets[i]?.inventory_asset_tag || 'N/A'}
                     </td>
                     <td className="px-3 py-2 text-gray-700 max-w-28 truncate">{row.description}</td>
-                    <td className="px-3 py-2"><input type="text" value={row.serial_number} onChange={e => updateRow(i,'serial_number',e.target.value)} className={inp} placeholder="SN-xxxxx" /></td>
                     <td className="px-3 py-2"><input type="text" value={row.assigned_to} onChange={e => updateRow(i,'assigned_to',e.target.value)} className={inp} /></td>
                     <td className="px-3 py-2"><input type="text" value={row.location} onChange={e => updateRow(i,'location',e.target.value)} className={inp} /></td>
                     <td className="px-3 py-2">
@@ -411,7 +746,12 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-            {saved && <p className="text-xs text-green-600 font-medium">✓ Saved!</p>}
+            {saved && (
+              <div className="flex items-center gap-2 text-green-600 animate-pulse">
+                <CheckCircle size={16} />
+                <p className="text-sm font-semibold">Saved!</p>
+              </div>
+            )}
             {!saved && <span />}
             <button onClick={handleSaveAssets} disabled={loading}
               className="px-4 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
@@ -445,7 +785,12 @@ const EditGroupForm = ({ groupAssets, onClose, onSuccess }) => {
             ))}
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-            {saved && <p className="text-xs text-green-600 font-medium">✓ Saved!</p>}
+            {saved && (
+              <div className="flex items-center gap-2 text-green-600 animate-pulse">
+                <CheckCircle size={16} />
+                <p className="text-sm font-semibold">Saved!</p>
+              </div>
+            )}
             {!saved && <span />}
             <button onClick={handleSaveRefs} disabled={loading}
               className="px-4 py-2 bg-blue-900 text-white text-sm font-medium rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors">
@@ -586,7 +931,8 @@ const Assets = () => {
   const [cancelTarget,    setCancelTarget]    = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
   const [bulkCancelQueue, setBulkCancelQueue] = useState(null);
-  const [editGroupTarget,  setEditGroupTarget]  = useState(null); // { poKey, assets[] }
+  const [editGroupTarget,   setEditGroupTarget]  = useState(null);
+  const [operationLoading,  setOperationLoading] = useState(null); // { type: 'deploy'|'cancel', count: N }
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
   const [isScannerOpen,   setIsScannerOpen]   = useState(false);
   const [showFilters,     setShowFilters]     = useState(false);
@@ -637,8 +983,9 @@ const Assets = () => {
       const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
       const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
       return (
-        (!q || [a.asset_id, a.description, a.category, a.location, a.assigned_to,
-                 a.serial_number, a.po_number, a.pr_number, a.jor_number,
+        (!q || [a.inventory_asset_tag, a.asset_id, a.description, a.category,
+                 a.location, a.assigned_to, a.serial_number,
+                 a.po_number, a.pr_number, a.jor_number,
                  a.transmittal_seq, a.accountability_seq]
           .some(f => String(f || '').toLowerCase().includes(q))) &&
         (!filters.assetId    || String(a.asset_id    || '').toLowerCase().includes(filters.assetId.toLowerCase())) &&
@@ -656,17 +1003,27 @@ const Assets = () => {
   const groupedByPO = useMemo(() => {
     const groups = {};
     filtered.forEach(asset => {
-      const key = asset.po_number?.trim() || '(No PO Number)';
+      // If no PO, use asset_id as unique key so each asset is its own group
+      const key = asset.po_number?.trim() || `__NOPO__${asset.asset_id || asset.id}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(asset);
     });
     return Object.entries(groups); // [ [poKey, assets[]], ... ]
   }, [filtered]);
 
-  const totalPages = Math.max(1, Math.ceil(groupedByPO.length / pageSize));
-  const paginatedGroups = groupedByPO.slice((page - 1) * pageSize, page * pageSize);
+  // Flatten groups with single items for direct display
+  const displayRows = useMemo(() => {
+    return groupedByPO.map(([poKey, assets]) => ({
+      poKey,
+      assets,
+      isGroup: assets.length > 1, // Only show group header if multiple items
+    }));
+  }, [groupedByPO]);
+
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  const paginatedRows = displayRows.slice((page - 1) * pageSize, page * pageSize);
   // paginated still needed for select-all count
-  const paginated = paginatedGroups.flatMap(([, assets]) => assets);
+  const paginated = paginatedRows.flatMap(row => row.assets);
 
   const inUse       = assets.filter(a => a.status === 'In Use').length;
   const maintenance = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
@@ -674,18 +1031,28 @@ const Assets = () => {
   const completed   = assets.filter(a => a.status === 'Completed').length;
 
   const handleCancelConfirm = async (reason) => {
-    const ok = await cancelAsset(cancelTarget.id, reason);
-    if (!ok) alert('Failed to cancel asset.');
+    const target = cancelTarget;
     setCancelTarget(null);
+    setOperationLoading({ type: 'cancel', count: 1 });
+    try {
+      const ok = await cancelAsset(target.id, reason);
+      if (!ok) alert('Failed to cancel asset.');
+    } finally {
+      setOperationLoading(null);
+    }
   };
 
   const handleBulkCancelConfirm = async (reason) => {
     if (!bulkCancelQueue?.length) return;
-    // Use bulkCancelAssets: batch DB update + sequential inventory restoration
-    const { succeeded, failed } = await bulkCancelAssets(bulkCancelQueue, reason);
-    if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
+    setOperationLoading({ type: 'cancel', count: bulkCancelQueue.length });
     setBulkCancelQueue(null);
-    clearSelection();
+    try {
+      const { succeeded, failed } = await bulkCancelAssets(bulkCancelQueue, reason);
+      if (failed > 0) alert(`${failed} asset(s) failed to cancel.`);
+    } finally {
+      setOperationLoading(null);
+      clearSelection();
+    }
   };
 
   const handleDeleteConfirm = async (reason) => {
@@ -731,6 +1098,7 @@ const Assets = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
+            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -765,22 +1133,6 @@ const Assets = () => {
           <FilterPanel filters={filters} onChange={handleFilterChange} onReset={resetFilters} categories={categories} />
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Total Assets',   value: assets.length,       color: 'text-gray-800' },
-            { label: 'Tagged',         value: stats.assetsTagged,  color: 'text-green-600' },
-            { label: 'Deployed',       value: inUse,               color: 'text-green-600' },
-            { label: 'In Progress',    value: maintenance,         color: 'text-blue-600' },
-            { label: 'Cancelled',      value: cancelled,           color: 'text-red-600' },
-          ].map(({ label, value, color }) => (
-            <Card key={label} padding="p-4">
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
-              <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            </Card>
-          ))}
-        </div>
-
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-900 text-white rounded-xl">
@@ -802,7 +1154,7 @@ const Assets = () => {
 
         {/* Results summary */}
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Showing <strong>{paginatedGroups.length}</strong> PO group{paginatedGroups.length !== 1 ? 's' : ''} (<strong>{paginated.length}</strong> assets) of <strong>{groupedByPO.length}</strong> total groups
+          <span>Showing <strong>{paginatedRows.length}</strong> row{paginatedRows.length !== 1 ? 's' : ''} (<strong>{paginated.length}</strong> assets) of <strong>{displayRows.length}</strong> total rows
           </span>
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
@@ -850,71 +1202,87 @@ const Assets = () => {
                     <p className="text-sm mt-1">{activeFilterCount > 0 || search ? 'Try adjusting your filters.' : 'Click "Add Asset" to get started.'}</p>
                   </td></tr>
                 ) : (() => {
-                  return paginatedGroups.map(([poKey, groupAssets]) => {
+                  return paginatedRows.map(({ poKey, assets: groupAssets, isGroup }) => {
                     const collapsed = !expandedGroups.has(poKey); // collapsed by default
                     const allSelected = groupAssets.every(a => selectedIds.has(a.id));
 
                     return (
                       <React.Fragment key={poKey}>
-                        {/* PO Group header row */}
-                        <tr className="bg-blue-950 text-white">
-                          <td className="px-4 py-2">
-                            <button onClick={() => {
-                              if (allSelected) groupAssets.forEach(a => setSelectedIds(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
-                              else groupAssets.forEach(a => setSelectedIds(prev => new Set([...prev, a.id])));
-                            }} className="text-blue-300 hover:text-white">
-                              {allSelected
-                                ? <CheckSquare size={16} className="text-blue-300" />
-                                : <Square size={16} />}
-                            </button>
-                          </td>
-                          <td colSpan="7" className="px-4 py-2">
-                            <button onClick={() => toggleGroup(poKey)}
-                              className="flex items-center gap-2 text-sm font-semibold w-full text-left">
-                              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                              <span className="text-blue-300 text-xs font-medium uppercase tracking-wide mr-1">PO#</span>
-                              <span className="font-bold">{poKey}</span>
-                              <span className="ml-2 bg-white/20 text-white text-xs px-2 py-0.5 rounded-full font-normal">
-                                {groupAssets.length} asset{groupAssets.length !== 1 ? 's' : ''}
-                              </span>
-                              {/* Show PR / JOR if present */}
-                              {groupAssets[0]?.pr_number && (
-                                <span className="text-blue-300 text-xs ml-2">PR: {groupAssets[0].pr_number}</span>
-                              )}
-                              {groupAssets[0]?.jor_number && (
-                                <span className="text-blue-300 text-xs ml-1">JOR: {groupAssets[0].jor_number}</span>
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => printGroupAccountability(groupAssets)}
-                                title="Print Accountability Form"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <Printer size={11} /> Accountability
+                        {/* Show group header only if multiple items */}
+                        {isGroup && (
+                          <tr className="bg-blue-950 text-white">
+                            <td className="px-4 py-2">
+                              <button onClick={() => {
+                                if (allSelected) groupAssets.forEach(a => setSelectedIds(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
+                                else groupAssets.forEach(a => setSelectedIds(prev => new Set([...prev, a.id])));
+                              }} className="text-blue-300 hover:text-white">
+                                {allSelected
+                                  ? <CheckSquare size={16} className="text-blue-300" />
+                                  : <Square size={16} />}
                               </button>
-                              <button
-                                onClick={() => printGroupTransmittal(groupAssets)}
-                                title="Print Transmittal Slip"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <Printer size={11} /> Transmittal
+                            </td>
+                            <td colSpan="7" className="px-4 py-2">
+                              <button onClick={() => toggleGroup(poKey)}
+                                className="flex items-center gap-2 text-sm font-semibold w-full text-left">
+                                {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                                {poKey.startsWith('__NOPO__') ? (
+                                  <span className="font-bold">
+                                    {groupAssets[0]?.inventory_asset_tag?.trim() || groupAssets[0]?.asset_id || 'N/A'}
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className="text-blue-300 text-xs font-medium uppercase tracking-wide mr-1">PO#</span>
+                                    <span className="font-bold">{poKey}</span>
+                                  </>
+                                )}
+                                <span className="ml-2 bg-white/20 text-white text-xs px-2 py-0.5 rounded-full font-normal">
+                                  {groupAssets.length} asset{groupAssets.length !== 1 ? 's' : ''}
+                                </span>
+                                {/* Show PR / JOR if present */}
+                                {groupAssets[0]?.pr_number && (
+                                  <span className="text-blue-300 text-xs ml-2">PR: {groupAssets[0].pr_number}</span>
+                                )}
+                                {groupAssets[0]?.jor_number && (
+                                  <span className="text-blue-300 text-xs ml-1">JOR: {groupAssets[0].jor_number}</span>
+                                )}
                               </button>
-                              <button
-                                onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
-                                title="Edit PO Group"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <Edit size={12} /> Edit Group
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {/* Asset rows within the group */}
-                        {!collapsed && groupAssets.map((asset, i) => (
-                          <tr key={`${poKey}-${asset.id || asset.asset_id}-${i}`} className={`hover:bg-gray-50 transition-colors border-l-4 ${selectedIds.has(asset.id) ? 'bg-blue-50 border-blue-400' : 'border-transparent'}`}>
+                            </td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => printGroupAccountability(groupAssets)}
+                                  title="Print Accountability Form"
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <Printer size={11} /> Accountability Form
+                                </button>
+                                <button
+                                  onClick={() => printGroupTransmittal(groupAssets)}
+                                  title="Print Transmittal Slip"
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <Printer size={11} /> Transmittal Slip
+                                </button>
+                                <button
+                                  onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
+                                  title="Edit PO Group"
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <Edit size={12} /> Edit Group
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {/* Asset rows - show directly if single item, or under group if multiple */}
+                        {(isGroup ? !collapsed : true) && groupAssets.map((asset, i) => (
+                          <tr key={`${poKey}-${asset.id || asset.asset_id}-${i}`} className={`hover:bg-gray-50 transition-colors border-l-4 ${
+                            selectedIds.has(asset.id) 
+                              ? 'bg-blue-50 border-blue-400' 
+                              : isGroup 
+                                ? 'bg-green-50 border-transparent border-b-2 border-b-blue-300' 
+                                : 'border-transparent'
+                          }`}>
                             <td className="px-4 py-3">
                               <button onClick={() => toggleSelect(asset.id)} className="text-gray-400 hover:text-blue-600">
                                 {selectedIds.has(asset.id) ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
@@ -1018,12 +1386,41 @@ const Assets = () => {
               groupAssets={editGroupTarget.assets}
               onClose={() => setEditGroupTarget(null)}
               onSuccess={() => setEditGroupTarget(null)}
+              setOperationLoading={setOperationLoading}
+              allAssets={assets}
             />
           )}
         </Modal>
 
         {selectedQRAsset && <QRModal asset={selectedQRAsset} onClose={() => setSelectedQRAsset(null)} />}
         {isScannerOpen   && <QRScanner onClose={() => setIsScannerOpen(false)} />}
+
+        {/* Operation Loading Overlay */}
+        {operationLoading && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4">
+              <div className="flex flex-col items-center gap-5">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+                  <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-700 animate-spin" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-semibold text-gray-800">
+                    {operationLoading.type === 'cancel' ? 'Cancelling Assets' : 
+                     operationLoading.type === 'save' ? 'Updating' : 'Processing'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {operationLoading.type === 'cancel'
+                      ? `Cancelling ${operationLoading.count} asset${operationLoading.count !== 1 ? 's' : ''}…`
+                      : operationLoading.type === 'save'
+                      ? `Saving ${operationLoading.count} asset${operationLoading.count !== 1 ? 's' : ''}…`
+                      : 'Please wait…'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
           </div>
       </div>}
     </div>

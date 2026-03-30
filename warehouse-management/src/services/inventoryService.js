@@ -35,6 +35,7 @@ const InventoryService = {
             ? 'Low Stock'
             : 'In Stock',
         asset_tags: itemData.assetTags || [],
+        serial_numbers: itemData.serialNumbers || [],
         created_by: itemData.createdBy,
         history: [
           {
@@ -118,6 +119,7 @@ const InventoryService = {
         max_stock_level: updates.maxStockLevel  ?? updates.max_stock_level  ?? existingItem.max_stock_level,
         unit_price:      updates.unitPrice      ?? updates.unit_price       ?? existingItem.unit_price,
         asset_tags:      updates.assetTags      ?? updates.asset_tags       ?? existingItem.asset_tags ?? [],
+        serial_numbers:  updates.serialNumbers  ?? updates.serial_numbers   ?? existingItem.serial_numbers ?? [],
         status:          updates.status         ?? derivedStatus,
       };
 

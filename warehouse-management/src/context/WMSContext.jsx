@@ -217,18 +217,17 @@ export const WMSProvider = ({ children }) => {
   // Creates `quantity` individual asset records (each with unique ID + QR),
   // then deducts that quantity from the inventory item in one call.
   const deployAsset = useCallback(async (assetData) => {
-    const { inventoryItemId, quantity = 1, inventoryAssetTags = [], ...rest } = assetData;
+    const { inventoryItemId, quantity = 1, inventoryAssetTags = [], serialNumbers = [], ...rest } = assetData;
     const qty = Math.max(1, parseInt(quantity) || 1);
 
     // Step 1 — build all asset row data, then batch insert in ONE DB call
     const batchData = Array.from({ length: qty }, (_, i) => {
       const rawTag = inventoryAssetTags[i] || rest.inventoryAssetTag || '';
       const tag    = rawTag.trim()?.substring(0, 90) || '';
+      const serialNum = (serialNumbers[i] || '').trim();
       return {
         ...rest,
-        serialNumber: qty > 1 && rest.serialNumber
-          ? `${rest.serialNumber}-${String(i + 1).padStart(2, '0')}`
-          : rest.serialNumber,
+        serialNumber: serialNum || '',
         inventoryAssetTag: tag,
         unitIndex:         i,
         inventoryItemId,
@@ -265,6 +264,32 @@ export const WMSProvider = ({ children }) => {
   }, [currentUser.name]);
 
   const updateAsset = async (id, updates) => {
+    // Get the current asset to check if status is changing from Cancelled
+    const currentAsset = assets.find(a => a.id === id);
+    const wasCancelled = currentAsset?.status === 'Cancelled';
+    const isBeingReactivated = wasCancelled && updates.status && updates.status !== 'Cancelled';
+
+    // If reactivating a cancelled asset, we need to re-deploy from inventory
+    if (isBeingReactivated && currentAsset?.inventory_item_id) {
+      const invItemId = currentAsset.inventory_item_id;
+      const assetTag = currentAsset.inventory_asset_tag || '';
+      
+      // Deduct 1 from inventory (re-deploy)
+      const updatedItem = await InventoryService.adjustQuantity(
+        invItemId,
+        -1,
+        'Re-deployed from Cancelled Asset',
+        currentUser.name,
+        assetTag ? [assetTag] : []
+      );
+      
+      if (updatedItem) {
+        setInventory(prev =>
+          prev.map(item => item.id === invItemId ? updatedItem : item)
+        );
+      }
+    }
+
     const updatedAsset = await AssetService.update(id, {
       ...updates,
       updatedBy: currentUser.name

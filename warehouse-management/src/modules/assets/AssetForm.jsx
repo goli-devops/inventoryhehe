@@ -13,7 +13,6 @@ const loadScript = (src) => new Promise((res, rej) => {
   document.head.appendChild(s);
 });
 
-// ── Accountability Form — matches ICT DEPARTMENT ACCOUNTABILITY FORM ──────────
 // ── Load logo as base64 for embedding in PDF ─────────────────────────────────
 const getLogoBase64 = () => new Promise((resolve) => {
   const img = new Image();
@@ -24,7 +23,7 @@ const getLogoBase64 = () => new Promise((resolve) => {
     canvas.getContext('2d').drawImage(img, 0, 0);
     resolve(canvas.toDataURL('image/png'));
   };
-  img.onerror = () => resolve(null); // skip logo if unavailable
+  img.onerror = () => resolve(null);
   img.src = '/goli_logo.jpg';
 });
 
@@ -572,6 +571,16 @@ const AssetForm = ({ onClose, onSuccess }) => {
         const assetTags = getAvailableAssetTags(line.inventoryItemId);
         const qty = Math.max(1, Math.min(line.quantity, item.quantity));
 
+        // Get serial numbers from inventory item
+        let serialNumbers = [];
+        if (item.serial_numbers) {
+          if (Array.isArray(item.serial_numbers)) {
+            serialNumbers = item.serial_numbers;
+          } else if (typeof item.serial_numbers === 'string') {
+            try { serialNumbers = JSON.parse(item.serial_numbers); } catch { serialNumbers = []; }
+          }
+        }
+
         // Build payload for each unit, then fire ONE deployAsset call (internally uses Promise.all)
         // Pass the first asset tag as inventoryAssetTag — service uses it as asset_id
         // For qty > 1, pass assetTags array via inventoryAssetTags so service assigns one per unit
@@ -588,7 +597,8 @@ const AssetForm = ({ onClose, onSuccess }) => {
           jorNumber:         sharedData.jorNumber,
           accountabilitySeq: sharedData.accountabilitySeq,
           transmittalSeq:    sharedData.transmittalSeq,
-          serialNumber:      line.serialNumber || '',
+          serialNumber:      serialNumbers[0] || line.serialNumber || '',
+          serialNumbers:     serialNumbers,
           assignedTo:        line.assignedTo || sharedData.assignedTo,
           location:          line.location || sharedData.location,
           status:            sharedData.status,
@@ -728,6 +738,22 @@ const AssetForm = ({ onClose, onSuccess }) => {
               Go Back &amp; Fix
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full-screen deploy loader
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-5">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-700 animate-spin" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-base font-semibold text-gray-800">Deploying Assets…</p>
+          <p className="text-xs text-gray-400">Creating asset records and updating inventory. Please wait.</p>
         </div>
       </div>
     );
@@ -957,10 +983,6 @@ const AssetForm = ({ onClose, onSuccess }) => {
                               className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-lg font-medium disabled:opacity-30 disabled:cursor-not-allowed">+</button>
                           </div>
                         </div>
-                        <div><label className={lbl}>Serial Number</label>
-                          <input type="text" value={line.serialNumber}
-                            onChange={e => updateLine(i, 'serialNumber', e.target.value)}
-                            placeholder="SN-xxxxx" className={inp} /></div>
                         <div><label className={lbl}>Assigned To <span className="text-xs text-gray-400">(overrides default)</span></label>
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}
