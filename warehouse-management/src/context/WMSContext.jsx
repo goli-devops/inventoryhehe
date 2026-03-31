@@ -216,19 +216,23 @@ export const WMSProvider = ({ children }) => {
   // Deploy assets from inventory:
   // Creates `quantity` individual asset records (each with unique ID + QR),
   // then deducts that quantity from the inventory item in one call.
+  // Each deployed asset receives its own unique serial number from the inventory.
   const deployAsset = useCallback(async (assetData) => {
     const { inventoryItemId, quantity = 1, inventoryAssetTags = [], serialNumbers = [], ...rest } = assetData;
     const qty = Math.max(1, parseInt(quantity) || 1);
 
     // Step 1 — build all asset row data, then batch insert in ONE DB call
+    // Each unit gets its corresponding asset tag and serial number from inventory
     const batchData = Array.from({ length: qty }, (_, i) => {
       const rawTag = inventoryAssetTags[i] || rest.inventoryAssetTag || '';
       const tag    = rawTag.trim()?.substring(0, 90) || '';
+      // Assign the serial number from inventory's serial_numbers array at index i
+      // If no serial number exists for this unit, use empty string (will be stored as null)
       const serialNum = (serialNumbers[i] || '').trim();
       return {
         ...rest,
-        serialNumber: serialNum || '',
-        inventoryAssetTag: tag,
+        serialNumber: serialNum || '',  // Unique serial number for this unit, empty if not assigned
+        inventoryAssetTag: tag,         // Unique asset tag for this unit
         unitIndex:         i,
         inventoryItemId,
         createdBy:         currentUser.name,
@@ -327,13 +331,15 @@ export const WMSProvider = ({ children }) => {
     if (!result) return false;
     // Return quantity to inventory if linked — adjust qty optimistically, skip full refetch
     if (result.inventoryItemId) {
-      // Pass the asset tag back so inventory restores it in asset_tags array
+      // Pass the asset tag AND serial number back so inventory restores both
       const returnedTag = result.asset?.inventory_asset_tag || '';
+      const returnedSerial = result.asset?.serial_number || '';
       const updatedItem = await InventoryService.adjustQuantity(
         result.inventoryItemId, 1,
         'Returned from Cancelled Asset',
         currentUser.name,
-        returnedTag ? [returnedTag] : []
+        returnedTag ? [returnedTag] : [],
+        returnedSerial ? [returnedSerial] : []
       );
       setInventory(prev => prev.map(item =>
         item.id === result.inventoryItemId
@@ -415,19 +421,22 @@ export const WMSProvider = ({ children }) => {
     const byInventoryItem = {};
     results.forEach(r => {
       if (r.inventoryItemId) {
-        if (!byInventoryItem[r.inventoryItemId]) byInventoryItem[r.inventoryItemId] = [];
-        byInventoryItem[r.inventoryItemId].push(r.asset?.inventory_asset_tag || '');
+        if (!byInventoryItem[r.inventoryItemId]) byInventoryItem[r.inventoryItemId] = { tags: [], serials: [] };
+        byInventoryItem[r.inventoryItemId].tags.push(r.asset?.inventory_asset_tag || '');
+        byInventoryItem[r.inventoryItemId].serials.push(r.asset?.serial_number || '');
       }
     });
 
-    for (const [invId, tags] of Object.entries(byInventoryItem)) {
-      const qty = tags.length;
-      const returnedTags = tags.filter(Boolean);
+    for (const [invId, data] of Object.entries(byInventoryItem)) {
+      const qty = data.tags.length;
+      const returnedTags = data.tags.filter(Boolean);
+      const returnedSerials = data.serials.filter(Boolean);
       const updatedItem = await InventoryService.adjustQuantity(
         invId, qty,
         `Returned from Cancelled Asset (x${qty})`,
         currentUser.name,
-        returnedTags
+        returnedTags,
+        returnedSerials
       );
       if (updatedItem) {
         setInventory(prev => prev.map(item => item.id === invId ? updatedItem : item));

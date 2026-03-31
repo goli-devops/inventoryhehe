@@ -568,23 +568,51 @@ const AssetForm = ({ onClose, onSuccess }) => {
         const item = getItem(line.inventoryItemId);
         if (!item) return [];
         const unitPrice = item.unit_price || item.unitPrice || 0;
-        const assetTags = getAvailableAssetTags(line.inventoryItemId);
-        const qty = Math.max(1, Math.min(line.quantity, item.quantity));
+        
+        // Get CURRENTLY AVAILABLE asset tags (tags that haven't been deployed yet)
+        const availableAssetTags = getAvailableAssetTags(line.inventoryItemId);
+        const qty = Math.max(1, Math.min(line.quantity, availableAssetTags.length));
+        
+        // Take only the first qty tags that are available NOW
+        const assetTagsToDeploy = availableAssetTags.slice(0, qty);
 
-        // Get serial numbers from inventory item
-        let serialNumbers = [];
+        // Get ALL serial numbers and ALL asset tags from inventory
+        let allSerialNumbers = [];
         if (item.serial_numbers) {
           if (Array.isArray(item.serial_numbers)) {
-            serialNumbers = item.serial_numbers;
+            allSerialNumbers = item.serial_numbers;
           } else if (typeof item.serial_numbers === 'string') {
-            try { serialNumbers = JSON.parse(item.serial_numbers); } catch { serialNumbers = []; }
+            try { allSerialNumbers = JSON.parse(item.serial_numbers); } catch { allSerialNumbers = []; }
           }
         }
+        
+        let allAssetTags = [];
+        if (Array.isArray(item.asset_tags)) {
+          allAssetTags = item.asset_tags;
+        } else if (typeof item.asset_tags === 'string') {
+          try { allAssetTags = JSON.parse(item.asset_tags); } catch { allAssetTags = []; }
+        } else if (item.asset_tags && typeof item.asset_tags === 'object') {
+          allAssetTags = Object.values(item.asset_tags);
+        }
+
+        // Map each tag being deployed to its corresponding serial number
+        const serialNumbersForDeployment = assetTagsToDeploy.map((tag) => {
+          // Find where this tag is in the FULL inventory asset_tags array
+          const tagIndex = allAssetTags.indexOf(tag);
+          
+          // Get the serial number at that same index
+          if (tagIndex >= 0 && tagIndex < allSerialNumbers.length) {
+            const serial = allSerialNumbers[tagIndex];
+            // Return empty string if serial is null, undefined, empty, or whitespace
+            return (serial && String(serial).trim()) ? String(serial).trim() : '';
+          }
+          return '';
+        });
 
         // Build payload for each unit, then fire ONE deployAsset call (internally uses Promise.all)
         // Pass the first asset tag as inventoryAssetTag — service uses it as asset_id
         // For qty > 1, pass assetTags array via inventoryAssetTags so service assigns one per unit
-        const inventoryAssetTag = assetTags[0] || '';
+        const inventoryAssetTag = assetTagsToDeploy[0] || '';
 
         const result = await deployAsset({
           inventoryItemId:   line.inventoryItemId,
@@ -597,15 +625,15 @@ const AssetForm = ({ onClose, onSuccess }) => {
           jorNumber:         sharedData.jorNumber,
           accountabilitySeq: sharedData.accountabilitySeq,
           transmittalSeq:    sharedData.transmittalSeq,
-          serialNumber:      serialNumbers[0] || line.serialNumber || '',
-          serialNumbers:     serialNumbers,
+          serialNumber:      line.serialNumber || '',
+          serialNumbers:     serialNumbersForDeployment,  // Only serial numbers for deployed units
           assignedTo:        line.assignedTo || sharedData.assignedTo,
           location:          line.location || sharedData.location,
           status:            sharedData.status,
           purchaseDate:      sharedData.purchaseDate,
           warranty:          line.warrantyValue ? `${line.warrantyValue} ${line.warrantyUnit}` : '',
           inventoryAssetTag,
-          inventoryAssetTags: assetTags, // pass full array for per-unit ID assignment
+          inventoryAssetTags: assetTagsToDeploy, // pass full array for per-unit ID assignment
         });
 
         if (!result) return [];

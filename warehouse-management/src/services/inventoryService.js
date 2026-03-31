@@ -187,7 +187,7 @@ const InventoryService = {
   },
 
   // Adjust Quantity (Receive/Issue/Transfer)
-  async adjustQuantity(id, adjustment, type, user, deployedTags = []) {
+  async adjustQuantity(id, adjustment, type, user, deployedTags = [], returnedSerials = []) {
     try {
       const item = await this.getById(id);
       if (!item) return null;
@@ -198,7 +198,7 @@ const InventoryService = {
       if (newQuantity === 0) status = 'Out of Stock';
       else if (newQuantity <= item.min_stock_level) status = 'Low Stock';
 
-      // Remove deployed asset tags from the inventory asset_tags array
+      // Remove deployed asset tags AND their corresponding serial numbers from inventory
       let existingTags = [];
       if (Array.isArray(item.asset_tags)) existingTags = item.asset_tags;
       else if (typeof item.asset_tags === 'string') {
@@ -206,19 +206,45 @@ const InventoryService = {
       } else if (item.asset_tags && typeof item.asset_tags === 'object') {
         existingTags = Object.values(item.asset_tags);
       }
+      
+      let existingSerials = [];
+      if (Array.isArray(item.serial_numbers)) existingSerials = item.serial_numbers;
+      else if (typeof item.serial_numbers === 'string') {
+        try { existingSerials = JSON.parse(item.serial_numbers) || []; } catch { existingSerials = []; }
+      } else if (item.serial_numbers && typeof item.serial_numbers === 'object') {
+        existingSerials = Object.values(item.serial_numbers);
+      }
 
-      // For deployments (negative adjustment): remove the specific deployed tags
+      // For deployments (negative adjustment): remove the specific deployed tags AND their serials
       let updatedTags = [...existingTags];
+      let updatedSerials = [...existingSerials];
+      
       if (adjustment < 0 && deployedTags.length > 0) {
         deployedTags.forEach(tag => {
           const idx = updatedTags.indexOf(tag);
-          if (idx !== -1) updatedTags.splice(idx, 1);
+          if (idx !== -1) {
+            updatedTags.splice(idx, 1);
+            // Remove the serial number at the same index
+            if (idx < updatedSerials.length) {
+              updatedSerials.splice(idx, 1);
+            }
+          }
         });
       }
-      // For returns (positive adjustment): add the tag back if provided
+      // For returns (positive adjustment): add the tag AND serial back
       if (adjustment > 0 && deployedTags.length > 0) {
-        deployedTags.forEach(tag => {
-          if (tag && !updatedTags.includes(tag)) updatedTags.push(tag);
+        deployedTags.forEach((tag, idx) => {
+          if (tag && !updatedTags.includes(tag)) {
+            updatedTags.push(tag);
+            // Add the corresponding serial number back if provided
+            const serial = returnedSerials[idx] || '';
+            if (serial) {
+              updatedSerials.push(serial);
+            } else {
+              // If no serial provided, add empty string to maintain alignment
+              updatedSerials.push('');
+            }
+          }
         });
       }
 
@@ -246,6 +272,7 @@ const InventoryService = {
           quantity: newQuantity,
           status: status,
           asset_tags: updatedTags,
+          serial_numbers: updatedSerials,
           history: updatedHistory,
         })
         .eq('id', id)

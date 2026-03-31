@@ -80,6 +80,7 @@ const AssetService = {
   },
 
   // Batch insert — creates all asset records in a single DB call
+  // Each asset receives its unique serial number from the inventory module
   async createBatch(assetsDataArray) {
     try {
       const rows = assetsDataArray.map((assetData, idx) => {
@@ -94,7 +95,7 @@ const AssetService = {
           po_number:          assetData.poNumber          || '',
           pr_number:          assetData.prNumber          || '',
           jor_number:         assetData.jorNumber         || '',
-          serial_number:      assetData.serialNumber?.trim() || null,
+          serial_number:      assetData.serialNumber?.trim() || null,  // Unique serial from inventory - null if empty
           accountability_seq: assetData.accountabilitySeq || '',
           transmittal_seq:    assetData.transmittalSeq    || '',
         rr_number:          assetData.rrNumber          || '',
