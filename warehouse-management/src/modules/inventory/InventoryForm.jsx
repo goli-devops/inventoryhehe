@@ -63,7 +63,7 @@ const getSequentialTag = (startTag, offset) => {
 };
 
 // ── Single asset tag row with serial number ───────────────────────────────────
-const AssetTagRow = ({ index, tag, serialNumber, showQR, formData, tagError, onTagChange, onSerialChange, onToggleQR }) => {
+const AssetTagRow = ({ index, tag, serialNumber, showQR, formData, tagError, serialError, onTagChange, onSerialChange, onToggleQR }) => {
   // Prevent Enter key from submitting the form when scanning barcodes into serial field
   const preventEnterSubmit = (e) => {
     if (e.key === 'Enter') e.preventDefault();
@@ -120,6 +120,11 @@ const AssetTagRow = ({ index, tag, serialNumber, showQR, formData, tagError, onT
           className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         />
       </div>
+      {serialError && (
+        <div className="flex items-center gap-1.5 ml-14 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+          <span className="font-medium">⚠</span> {serialError}
+        </div>
+      )}
 
       {/* QR preview */}
       {showQR && tag && (
@@ -157,11 +162,24 @@ const InventoryForm = ({ onClose, onSuccess }) => {
   const [serialNumbers, setSerialNumbers] = useState([]);
   const [qrVisible,     setQrVisible]     = useState([]);
   const [tagErrors,     setTagErrors]     = useState([]); // per-unit duplicate errors
+  const [serialErrors,  setSerialErrors]  = useState([]); // per-unit duplicate serial errors
   const [showTagPanel,  setShowTagPanel]  = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [descError,     setDescError]     = useState('');
 
   const qty = parseInt(formData.quantity) || 0;
+
+  // Build flat set of ALL existing serial numbers across all inventory items
+  const existingSerialSet = React.useMemo(() => {
+    const set = new Set();
+    (inventory || []).forEach(item => {
+      let serials = item.serial_numbers;
+      if (!serials) return;
+      if (typeof serials === 'string') { try { serials = JSON.parse(serials); } catch { return; } }
+      if (Array.isArray(serials)) serials.forEach(s => s && set.add(String(s).trim()));
+    });
+    return set;
+  }, [inventory]);
 
   // Build flat set of ALL existing asset tags across all inventory items
   const existingTagSet = React.useMemo(() => {
@@ -212,12 +230,38 @@ const InventoryForm = ({ onClose, onSuccess }) => {
       if (existingTagSet.has(trimmed)) {
         n[i] = `Asset tag "${trimmed}" already exists in inventory.`;
       } else {
-        n[i] = '';
+        // Check for duplicates within current form
+        const isDupInForm = assetTags.some((t, idx) => idx !== i && t.trim() === trimmed);
+        if (isDupInForm) {
+          n[i] = `Asset tag "${trimmed}" is duplicated in this form.`;
+        } else {
+          n[i] = '';
+        }
       }
       return n;
     });
   };
-  const handleSerialChange = (i, v) => setSerialNumbers(prev => { const n = [...prev]; n[i] = v; return n; });
+  const handleSerialChange = (i, v) => {
+    setSerialNumbers(prev => { const n = [...prev]; n[i] = v; return n; });
+    // Check if this serial already exists in inventory or is a duplicate within current form
+    setSerialErrors(prev => {
+      const n = [...prev];
+      const trimmed = v.trim();
+      if (!trimmed) { n[i] = ''; return n; }
+      if (existingSerialSet.has(trimmed)) {
+        n[i] = `Serial number "${trimmed}" already exists in inventory.`;
+      } else {
+        // Check for duplicates within current form
+        const isDupInForm = serialNumbers.some((sn, idx) => idx !== i && sn.trim() === trimmed);
+        if (isDupInForm) {
+          n[i] = `Serial number "${trimmed}" is duplicated in this form.`;
+        } else {
+          n[i] = '';
+        }
+      }
+      return n;
+    });
+  };
   const handleToggleQR     = (i)    => setQrVisible(prev => { const n = [...prev]; n[i] = !n[i]; return n; });
   // Check for within-form duplicate tags after auto-generate
   const validateAllTags = (tags) => {
@@ -255,6 +299,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
     e.preventDefault();
     if (descError) return;
     if (tagErrors.some(Boolean)) { alert('Please fix the duplicate asset tag errors before saving.'); return; }
+    if (serialErrors.some(Boolean)) { alert('Please fix the duplicate serial number errors before saving.'); return; }
     const dup = (inventory || []).find(
       i => i.description?.toLowerCase().trim() === formData.description.toLowerCase().trim()
     );
@@ -424,6 +469,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
                     showQR={qrVisible[i] || false}
                     formData={formData}
                     tagError={tagErrors[i] || ''}
+                    serialError={serialErrors[i] || ''}
                     onTagChange={handleTagChange}
                     onSerialChange={handleSerialChange}
                     onToggleQR={handleToggleQR}
@@ -435,14 +481,17 @@ const InventoryForm = ({ onClose, onSuccess }) => {
         </div>
       )}
 
-      {tagErrors.some(Boolean) && (
+      {(tagErrors.some(Boolean) || serialErrors.some(Boolean)) && (
         <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl">
           <span className="text-red-500 text-base leading-none mt-0.5">⚠</span>
           <div>
-            <p className="text-sm font-semibold text-red-700">Cannot save — duplicate asset tags detected</p>
+            <p className="text-sm font-semibold text-red-700">Cannot save — duplicate entries detected</p>
             <ul className="mt-1 space-y-0.5">
               {tagErrors.map((err, i) => err ? (
-                <li key={i} className="text-xs text-red-600">• Unit {i + 1}: {err}</li>
+                <li key={`tag-${i}`} className="text-xs text-red-600">• Unit {i + 1}: {err}</li>
+              ) : null)}
+              {serialErrors.map((err, i) => err ? (
+                <li key={`serial-${i}`} className="text-xs text-red-600">• Unit {i + 1}: {err}</li>
               ) : null)}
             </ul>
           </div>
@@ -451,7 +500,7 @@ const InventoryForm = ({ onClose, onSuccess }) => {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={loading || !!descError || tagErrors.some(Boolean)}>
+        <Button type="submit" variant="primary" disabled={loading || !!descError || tagErrors.some(Boolean) || serialErrors.some(Boolean)}>
           {loading ? 'Adding…' : `Add Item${qty > 1 ? ` (${qty} units)` : ''}`}
         </Button>
       </div>

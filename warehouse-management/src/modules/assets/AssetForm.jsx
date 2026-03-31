@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Package, AlertCircle, Plus, Trash2,
-  Tag, FileText, Printer, CheckCircle2
+  Tag, FileText, Printer, CheckCircle2, Scan, X
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
@@ -192,9 +192,9 @@ const printTransmittalSlip = async (deployedAssets, sharedData) => {
 
 
 // ── Confirmation Step ────────────────────────────────────────────────────────
-const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, onConfirm, onBack, loading }) => {
+const ConfirmationStep = ({ lines, scannedItems, sharedData, getItem, getAvailableAssetTags, onConfirm, onBack, loading }) => {
   const validLines = lines.filter(l => l.inventoryItemId);
-  const totalAssets = validLines.reduce((s, l) => s + l.quantity, 0);
+  const totalAssets = validLines.reduce((s, l) => s + l.quantity, 0) + scannedItems.length;
 
   return (
     <div className="space-y-5">
@@ -260,7 +260,31 @@ const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, o
                       : <span className="text-gray-400 italic">N/A — no QR will be generated</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-800">
-                    &#8369;{(price * line.quantity).toLocaleString()}
+                    ₱{(price * line.quantity).toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })}
+            {scannedItems.map((scanned, i) => {
+              const item = getItem(scanned.inventoryItemId);
+              const price = item ? (item.unit_price || 0) : 0;
+              return (
+                <tr key={`scanned-${i}`} className="hover:bg-blue-50 bg-blue-50/50">
+                  <td className="px-4 py-3 text-gray-400">{validLines.length + i + 1}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-gray-800">{scanned.description}</p>
+                    <p className="text-xs text-blue-600 font-semibold">SN: {scanned.serialNumber}</p>
+                    {sharedData.assignedTo && (
+                      <p className="text-xs text-gray-400">Assigned: {sharedData.assignedTo}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{scanned.category}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">1</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono text-gray-500">{scanned.assetTag}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                    ₱{price.toLocaleString()}
                   </td>
                 </tr>
               );
@@ -269,15 +293,18 @@ const ConfirmationStep = ({ lines, sharedData, getItem, getAvailableAssetTags, o
           <tfoot className="bg-gray-50 border-t border-gray-200">
             <tr>
               <td colSpan="3" className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">
-                Total: {validLines.length} item type{validLines.length !== 1 ? 's' : ''}
+                Total: {validLines.length + scannedItems.length} item{validLines.length + scannedItems.length !== 1 ? 's' : ''}
               </td>
               <td className="px-4 py-2 text-center font-bold text-blue-700">{totalAssets}</td>
               <td />
               <td className="px-4 py-2 text-right font-bold text-gray-800">
-                &#8369;{validLines.reduce((s, l) => {
+                ₱{(validLines.reduce((s, l) => {
                   const item = getItem(l.inventoryItemId);
                   return s + (item?.unit_price || 0) * l.quantity;
-                }, 0).toLocaleString()}
+                }, 0) + scannedItems.reduce((s, scanned) => {
+                  const item = getItem(scanned.inventoryItemId);
+                  return s + (item?.unit_price || 0);
+                }, 0)).toLocaleString()}
               </td>
             </tr>
           </tfoot>
@@ -374,6 +401,11 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   // Multiple line items — each picks a different inventory item
   const [lines, setLines] = useState([EMPTY_LINE()]);
+  
+  // Serial scanning state
+  const [scanInput, setScanInput] = useState('');
+  const [scannedItems, setScannedItems] = useState([]);
+  const [scanError, setScanError] = useState('');
 
   const [sharedData, setSharedData] = useState({
     poNumber:         '',
@@ -483,14 +515,30 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   const handleConfirm = () => {
     const validLines = lines.filter(l => l.inventoryItemId);
-    if (validLines.length === 0) {
-      setDeployError({ title: 'No items selected', errors: ['Please select at least one inventory item to deploy.'] });
+    
+    // Combine manual lines and scanned items
+    const allItems = [...validLines];
+    scannedItems.forEach(scanned => {
+      allItems.push({
+        inventoryItemId: scanned.inventoryItemId,
+        quantity: 1,
+        serialNumber: scanned.serialNumber,
+        assignedTo: '',
+        location: '',
+        warranty: '',
+        warrantyValue: '',
+        warrantyUnit: 'Year/s',
+      });
+    });
+    
+    if (allItems.length === 0) {
+      setDeployError({ title: 'No items selected', errors: ['Please select at least one inventory item to deploy or scan a serial number.'] });
       return;
     }
 
     // Validate stock availability across all lines
     const stockErrors = [];
-    validLines.forEach((line, i) => {
+    allItems.forEach((line, i) => {
       const item = getItem(line.inventoryItemId);
       if (!item) return;
       const remaining = getRemainingForLine(
@@ -507,7 +555,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
     // Check for items allocated beyond their total stock (cross-line conflict)
     const totals = {};
-    validLines.forEach(line => {
+    allItems.forEach(line => {
       totals[line.inventoryItemId] = (totals[line.inventoryItemId] || 0) + line.quantity;
     });
     Object.entries(totals).forEach(([id, totalRequested]) => {
@@ -558,61 +606,113 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   const handleSubmit = async () => {
     const validLines = lines.filter(l => l.inventoryItemId);
+    
+    // Combine manual lines and scanned items
+    const allItems = [...validLines];
+    scannedItems.forEach(scanned => {
+      allItems.push({
+        inventoryItemId: scanned.inventoryItemId,
+        quantity: 1,
+        serialNumber: scanned.serialNumber,
+        assignedTo: '',
+        location: '',
+        warranty: '',
+        warrantyValue: '',
+        warrantyUnit: 'Year/s',
+      });
+    });
 
     setConfirmStep(false);
     setLoading(true);
 
     try {
       // Build all deploy calls up front, then run in parallel per inventory item
-      const deployPromises = validLines.map(async (line) => {
+      const deployPromises = allItems.map(async (line) => {
         const item = getItem(line.inventoryItemId);
         if (!item) return [];
         const unitPrice = item.unit_price || item.unitPrice || 0;
         
-        // Get CURRENTLY AVAILABLE asset tags (tags that haven't been deployed yet)
-        const availableAssetTags = getAvailableAssetTags(line.inventoryItemId);
-        const qty = Math.max(1, Math.min(line.quantity, availableAssetTags.length));
+        // For scanned items with specific serial numbers, we need to find the exact asset tag
+        let assetTagsToDeploy = [];
+        let serialNumbersForDeployment = [];
         
-        // Take only the first qty tags that are available NOW
-        const assetTagsToDeploy = availableAssetTags.slice(0, qty);
-
-        // Get ALL serial numbers and ALL asset tags from inventory
-        let allSerialNumbers = [];
-        if (item.serial_numbers) {
-          if (Array.isArray(item.serial_numbers)) {
-            allSerialNumbers = item.serial_numbers;
-          } else if (typeof item.serial_numbers === 'string') {
-            try { allSerialNumbers = JSON.parse(item.serial_numbers); } catch { allSerialNumbers = []; }
+        if (line.serialNumber) {
+          // This is a scanned item with a specific serial - find its asset tag
+          let allSerialNumbers = [];
+          if (item.serial_numbers) {
+            if (Array.isArray(item.serial_numbers)) {
+              allSerialNumbers = item.serial_numbers;
+            } else if (typeof item.serial_numbers === 'string') {
+              try { allSerialNumbers = JSON.parse(item.serial_numbers); } catch { allSerialNumbers = []; }
+            }
           }
-        }
-        
-        let allAssetTags = [];
-        if (Array.isArray(item.asset_tags)) {
-          allAssetTags = item.asset_tags;
-        } else if (typeof item.asset_tags === 'string') {
-          try { allAssetTags = JSON.parse(item.asset_tags); } catch { allAssetTags = []; }
-        } else if (item.asset_tags && typeof item.asset_tags === 'object') {
-          allAssetTags = Object.values(item.asset_tags);
-        }
-
-        // Map each tag being deployed to its corresponding serial number
-        const serialNumbersForDeployment = assetTagsToDeploy.map((tag) => {
-          // Find where this tag is in the FULL inventory asset_tags array
-          const tagIndex = allAssetTags.indexOf(tag);
           
-          // Get the serial number at that same index
-          if (tagIndex >= 0 && tagIndex < allSerialNumbers.length) {
-            const serial = allSerialNumbers[tagIndex];
-            // Return empty string if serial is null, undefined, empty, or whitespace
-            return (serial && String(serial).trim()) ? String(serial).trim() : '';
+          let allAssetTags = [];
+          if (Array.isArray(item.asset_tags)) {
+            allAssetTags = item.asset_tags;
+          } else if (typeof item.asset_tags === 'string') {
+            try { allAssetTags = JSON.parse(item.asset_tags); } catch { allAssetTags = []; }
+          } else if (item.asset_tags && typeof item.asset_tags === 'object') {
+            allAssetTags = Object.values(item.asset_tags);
           }
-          return '';
-        });
+          
+          // Find the index of this specific serial number
+          const serialIndex = allSerialNumbers.findIndex(s => String(s).trim() === line.serialNumber.trim());
+          if (serialIndex >= 0 && serialIndex < allAssetTags.length) {
+            assetTagsToDeploy = [allAssetTags[serialIndex]];
+            serialNumbersForDeployment = [line.serialNumber];
+          } else {
+            // Fallback if not found
+            serialNumbersForDeployment = [line.serialNumber];
+            assetTagsToDeploy = ['N/A'];
+          }
+        } else {
+          // Regular deployment - get available asset tags
+          const availableAssetTags = getAvailableAssetTags(line.inventoryItemId);
+          const qty = Math.max(1, Math.min(line.quantity, availableAssetTags.length));
+          
+          // Take only the first qty tags that are available NOW
+          assetTagsToDeploy = availableAssetTags.slice(0, qty);
+
+          // Get ALL serial numbers and ALL asset tags from inventory
+          let allSerialNumbers = [];
+          if (item.serial_numbers) {
+            if (Array.isArray(item.serial_numbers)) {
+              allSerialNumbers = item.serial_numbers;
+            } else if (typeof item.serial_numbers === 'string') {
+              try { allSerialNumbers = JSON.parse(item.serial_numbers); } catch { allSerialNumbers = []; }
+            }
+          }
+          
+          let allAssetTags = [];
+          if (Array.isArray(item.asset_tags)) {
+            allAssetTags = item.asset_tags;
+          } else if (typeof item.asset_tags === 'string') {
+            try { allAssetTags = JSON.parse(item.asset_tags); } catch { allAssetTags = []; }
+          } else if (item.asset_tags && typeof item.asset_tags === 'object') {
+            allAssetTags = Object.values(item.asset_tags);
+          }
+
+          // Map each tag being deployed to its corresponding serial number
+          serialNumbersForDeployment = assetTagsToDeploy.map((tag) => {
+            // Find where this tag is in the FULL inventory asset_tags array
+            const tagIndex = allAssetTags.indexOf(tag);
+            
+            // Get the serial number at that same index
+            if (tagIndex >= 0 && tagIndex < allSerialNumbers.length) {
+              const serial = allSerialNumbers[tagIndex];
+              // Return empty string if serial is null, undefined, empty, or whitespace
+              return (serial && String(serial).trim()) ? String(serial).trim() : '';
+            }
+            return '';
+          });
+        }
 
         // Build payload for each unit, then fire ONE deployAsset call (internally uses Promise.all)
         // Pass the first asset tag as inventoryAssetTag — service uses it as asset_id
         // For qty > 1, pass assetTags array via inventoryAssetTags so service assigns one per unit
         const inventoryAssetTag = assetTagsToDeploy[0] || '';
+        const qty = line.serialNumber ? 1 : line.quantity; // Scanned items are always qty 1
 
         const result = await deployAsset({
           inventoryItemId:   line.inventoryItemId,
@@ -677,6 +777,99 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1';
+
+  // Handle serial scan
+  const handleSerialScan = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const serial = scanInput.trim();
+    if (!serial) return;
+
+    // Find inventory item by serial number
+    let foundItem = null;
+    for (const item of inventory) {
+      let serials = [];
+      if (Array.isArray(item.serial_numbers)) {
+        serials = item.serial_numbers;
+      } else if (typeof item.serial_numbers === 'string') {
+        try { serials = JSON.parse(item.serial_numbers); } catch { serials = []; }
+      }
+      if (serials.some(s => String(s).trim() === serial)) {
+        foundItem = item;
+        break;
+      }
+    }
+
+    if (!foundItem) {
+      setScanError(`Serial "${serial}" not found in inventory`);
+      setScanInput('');
+      setTimeout(() => setScanError(''), 5000);
+      return;
+    }
+
+    if (foundItem.quantity <= 0) {
+      setScanError(`Item "${foundItem.description}" is out of stock`);
+      setScanInput('');
+      setTimeout(() => setScanError(''), 3000);
+      return;
+    }
+
+    // Check if serial is already deployed (active status)
+    const alreadyDeployed = (existingAssets || []).find(asset => 
+      asset.serial_number === serial && asset.status !== 'Cancelled'
+    );
+    
+    if (alreadyDeployed) {
+      setScanError(`This item is already processed for deployment (Status: ${alreadyDeployed.status})`);
+      setScanInput('');
+      setTimeout(() => setScanError(''), 3000);
+      return;
+    }
+
+    // Check if already scanned
+    if (scannedItems.some(s => s.serialNumber === serial)) {
+      setScanError(`Serial "${serial}" already scanned`);
+      setScanInput('');
+      setTimeout(() => setScanError(''), 3000);
+      return;
+    }
+
+    // Get asset tag for this serial
+    let assetTag = 'N/A';
+    let serials = [];
+    let tags = [];
+    if (Array.isArray(foundItem.serial_numbers)) serials = foundItem.serial_numbers;
+    else if (typeof foundItem.serial_numbers === 'string') {
+      try { serials = JSON.parse(foundItem.serial_numbers); } catch { serials = []; }
+    }
+    if (Array.isArray(foundItem.asset_tags)) tags = foundItem.asset_tags;
+    else if (typeof foundItem.asset_tags === 'string') {
+      try { tags = JSON.parse(foundItem.asset_tags); } catch { tags = []; }
+    } else if (foundItem.asset_tags && typeof foundItem.asset_tags === 'object') {
+      tags = Object.values(foundItem.asset_tags);
+    }
+    const serialIndex = serials.findIndex(s => String(s).trim() === serial);
+    if (serialIndex >= 0 && serialIndex < tags.length) {
+      assetTag = tags[serialIndex] || 'N/A';
+    }
+
+    setScannedItems(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      inventoryItemId: foundItem.id,
+      serialNumber: serial,
+      assetTag,
+      description: foundItem.description,
+      category: foundItem.category,
+    }]);
+    setScanInput('');
+    setScanError('');
+  };
+
+  const removeScannedItem = (id) => {
+    setScannedItems(prev => prev.filter(item => item.id !== id));
+  };
 
   // Show duplicate PO group modal
   if (dupGroupFound) {
@@ -792,6 +985,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
     return (
       <ConfirmationStep
         lines={lines}
+        scannedItems={scannedItems}
         sharedData={sharedData}
         getItem={getItem}
         getAvailableAssetTags={getAvailableAssetTags}
@@ -815,6 +1009,84 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
   return (
     <form onSubmit={e => { e.preventDefault(); handleConfirm(); }} className="space-y-5">
+
+      {/* ── Serial Scan Section ── */}
+      <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl space-y-3">
+        <div className="flex items-center gap-2">
+          <Scan size={18} className="text-blue-600" />
+          <p className="text-sm font-semibold text-blue-800">Scan Serial Numbers</p>
+        </div>
+        
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={scanInput}
+            onChange={e => setScanInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSerialScan(e);
+              }
+            }}
+            placeholder="Scan or enter serial number..."
+            className="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handleSerialScan}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Add
+          </button>
+        </div>
+
+        {scanError && (
+          <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle size={14} className="text-red-500" />
+            <p className="text-xs text-red-700">{scanError}</p>
+          </div>
+        )}
+
+        {scannedItems.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-blue-700">Scanned Items ({scannedItems.length})</p>
+            <div className="border border-blue-200 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-blue-100">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-blue-800">Serial No.</th>
+                    <th className="px-3 py-2 text-left font-semibold text-blue-800">Asset Tag</th>
+                    <th className="px-3 py-2 text-left font-semibold text-blue-800">Description</th>
+                    <th className="px-3 py-2 text-left font-semibold text-blue-800">Category</th>
+                    <th className="px-3 py-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-blue-100">
+                  {scannedItems.map(item => (
+                    <tr key={item.id} className="hover:bg-blue-50">
+                      <td className="px-3 py-2 font-mono text-gray-700">{item.serialNumber}</td>
+                      <td className="px-3 py-2 font-mono text-gray-700">{item.assetTag}</td>
+                      <td className="px-3 py-2 text-gray-800">{item.description}</td>
+                      <td className="px-3 py-2 text-gray-600">{item.category}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => removeScannedItem(item.id)}
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Reference Numbers ── */}
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
@@ -945,7 +1217,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
                         <div><p className="text-blue-500 font-medium uppercase">Available</p>
                           <p className="font-semibold text-gray-800">{item.quantity} {item.unit}</p></div>
                         <div><p className="text-blue-500 font-medium uppercase">Unit Price</p>
-                          <p className="font-semibold text-gray-800">&#8369;{(item.unit_price || 0).toLocaleString()}</p></div>
+                          <p className="font-semibold text-gray-800">₱{(item.unit_price || 0).toLocaleString()}</p></div>
                       </div>
 
                       {/* Asset tags from inventory */}
@@ -1056,13 +1328,14 @@ const AssetForm = ({ onClose, onSuccess }) => {
       </div>
 
       {/* Summary */}
-      {lines.some(l => l.inventoryItemId) && (
+      {(lines.some(l => l.inventoryItemId) || scannedItems.length > 0) && (
         <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
           <Package size={15} className="text-green-600 mt-0.5 shrink-0" />
           <p className="text-sm text-green-800">
             Deploying{' '}
-            <strong>{lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0)} asset record(s)</strong>
-            {' '}across <strong>{lines.filter(l => l.inventoryItemId).length} item type(s)</strong>.
+            <strong>{lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0) + scannedItems.length} asset record(s)</strong>
+            {' '}across <strong>{lines.filter(l => l.inventoryItemId).length + scannedItems.length} item(s)</strong>.
+            {scannedItems.length > 0 && <span className="block mt-1 text-blue-700 font-semibold">{scannedItems.length} scanned serial number(s) included.</span>}
             QR codes will be taken from inventory asset tags where available.
           </p>
         </div>
@@ -1070,8 +1343,8 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="purple" disabled={loading || !lines.some(l => l.inventoryItemId)}>
-          {loading ? 'Deploying…' : `Deploy ${lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0)} Asset(s)`}
+        <Button type="submit" variant="purple" disabled={loading || (!lines.some(l => l.inventoryItemId) && scannedItems.length === 0)}>
+          {loading ? 'Deploying…' : `Deploy ${lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0) + scannedItems.length} Asset(s)`}
         </Button>
       </div>
     </form>

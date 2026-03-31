@@ -105,21 +105,6 @@ const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
   if (!item) return null;
   return (
     <div className="space-y-5">
-      {/* Operation loading overlay */}
-      {operationLoading && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 flex flex-col items-center gap-4 min-w-64">
-            <div className="relative w-12 h-12">
-              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
-              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-700 animate-spin" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-gray-800">{operationLoading.label || 'Processing…'}</p>
-              <p className="text-xs text-gray-400 mt-1">{operationLoading.sub || 'Please wait'}</p>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
         <Trash2 size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
         <div>
@@ -290,8 +275,37 @@ const Inventory = () => {
       const date     = item.created_at ? new Date(item.created_at) : null;
       const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : null;
       const dateTo   = filters.dateTo   ? new Date(filters.dateTo + 'T23:59:59') : null;
+      
+      // Parse asset tags and serial numbers for searching
+      let assetTagsStr = '';
+      let serialNumbersStr = '';
+      
+      // Get asset tags as searchable string
+      if (item.asset_tags) {
+        let tags = item.asset_tags;
+        if (typeof tags === 'string') {
+          try { tags = JSON.parse(tags); } catch { tags = []; }
+        }
+        if (Array.isArray(tags)) {
+          assetTagsStr = tags.filter(Boolean).join(' ');
+        } else if (typeof tags === 'object') {
+          assetTagsStr = Object.values(tags).filter(Boolean).join(' ');
+        }
+      }
+      
+      // Get serial numbers as searchable string
+      if (item.serial_numbers) {
+        let serials = item.serial_numbers;
+        if (typeof serials === 'string') {
+          try { serials = JSON.parse(serials); } catch { serials = []; }
+        }
+        if (Array.isArray(serials)) {
+          serialNumbersStr = serials.filter(Boolean).join(' ');
+        }
+      }
+      
       return (
-        (!q || [item.item_code, item.description, item.category, item.supplier, item.location]
+        (!q || [item.item_code, item.description, item.category, item.supplier, item.location, assetTagsStr, serialNumbersStr]
           .some(f => (f || '').toLowerCase().includes(q))) &&
         (!filters.itemCode  || (item.item_code || '').toLowerCase().includes(filters.itemCode.toLowerCase())) &&
         (!filters.category  || item.category === filters.category) &&
@@ -430,7 +444,7 @@ const Inventory = () => {
         </Card>
         <Card padding="p-4">
           <p className="text-xs text-gray-500 mb-1">
-            {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Value'}
+            {filtered.length !== inventory.length ? 'Filtered Value' : 'Inventory Total Value'}
           </p>
           <p className="text-2xl font-bold text-blue-700">
             ₱{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
@@ -535,7 +549,7 @@ const Inventory = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.unit || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      ${(item.unit_price || item.unitPrice || 0).toLocaleString()}
+                      ₱{(item.unit_price || item.unitPrice || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.location || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.supplier || '—'}</td>

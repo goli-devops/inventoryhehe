@@ -65,7 +65,7 @@ const normalizeAssetTags = (raw) => {
 const genTag = (seed) => `${Date.now().toString().slice(-7)}${String(seed + 1).padStart(3, '0')}`;
 
 const InventoryEditForm = ({ item, onClose, onSuccess }) => {
-  const { updateInventoryItem } = useWMS();
+  const { updateInventoryItem, inventory } = useWMS();
   const { categories, units } = useSettings();
 
   // Normalize once at mount — not useMemo which can return stale [] on null
@@ -95,10 +95,40 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
     const arr = Array.isArray(sns) ? sns : (typeof sns === 'string' ? (() => { try { return JSON.parse(sns); } catch { return []; } })() : []);
     return Array.from({ length: item.quantity || 0 }, (_, i) => arr[i] || '');
   });
+  const [tagErrors,     setTagErrors]     = useState([]);
+  const [serialErrors,  setSerialErrors]  = useState([]);
   const [loading,   setLoading]   = useState(false);
   const [showTags,  setShowTags]  = useState(false);
 
   const qty = parseInt(formData.quantity) || 0;
+
+  // Build flat set of ALL existing asset tags across all inventory items (excluding current item)
+  const existingTagSet = React.useMemo(() => {
+    const set = new Set();
+    (inventory || []).forEach(inv => {
+      if (inv.id === item.id) return; // Skip current item
+      let tags = inv.asset_tags;
+      if (!tags) return;
+      if (typeof tags === 'string') { try { tags = JSON.parse(tags); } catch { return; } }
+      if (Array.isArray(tags)) tags.forEach(t => t && set.add(String(t).trim()));
+      else if (typeof tags === 'object') Object.values(tags).forEach(t => t && set.add(String(t).trim()));
+      if (inv.item_code && inv.item_code !== 'N/A') set.add(inv.item_code.trim());
+    });
+    return set;
+  }, [inventory, item.id]);
+
+  // Build flat set of ALL existing serial numbers across all inventory items (excluding current item)
+  const existingSerialSet = React.useMemo(() => {
+    const set = new Set();
+    (inventory || []).forEach(inv => {
+      if (inv.id === item.id) return; // Skip current item
+      let serials = inv.serial_numbers;
+      if (!serials) return;
+      if (typeof serials === 'string') { try { serials = JSON.parse(serials); } catch { return; } }
+      if (Array.isArray(serials)) serials.forEach(s => s && set.add(String(s).trim()));
+    });
+    return set;
+  }, [inventory, item.id]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -123,13 +153,41 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
 
   const handleTagChange = (index, value) => {
     setAssetTags(prev => { const n = [...prev]; n[index] = value.replace(/\D/g, ''); return n; });
+    // Check if this tag already exists in inventory or is a duplicate within current form
+    setTagErrors(prev => {
+      const n = [...prev];
+      const trimmed = value.replace(/\D/g, '').trim();
+      if (!trimmed) { n[index] = ''; return n; }
+      if (existingTagSet.has(trimmed)) {
+        n[index] = `Asset tag "${trimmed}" already exists in inventory.`;
+      } else {
+        // Check for duplicates within current form
+        const isDupInForm = assetTags.some((t, idx) => idx !== index && t.trim() === trimmed);
+        if (isDupInForm) {
+          n[index] = `Asset tag "${trimmed}" is duplicated in this form.`;
+        } else {
+          n[index] = '';
+        }
+      }
+      return n;
+    });
   };
 
   const autoGenerateAll = () => {
     // Only fill empty slots — don't overwrite existing tags
-    setAssetTags(prev =>
-      Array.from({ length: qty }, (_, i) => prev[i] || genTag(i))
-    );
+    const newTags = Array.from({ length: qty }, (_, i) => assetTags[i] || genTag(i));
+    setAssetTags(newTags);
+    // Validate all tags after generation
+    const seen = new Set();
+    const errors = newTags.map((tag, i) => {
+      const trimmed = tag?.trim() || '';
+      if (!trimmed) return '';
+      if (existingTagSet.has(trimmed)) return `Asset tag "${trimmed}" already exists in inventory.`;
+      if (seen.has(trimmed)) return `Asset tag "${trimmed}" is duplicated in this form.`;
+      seen.add(trimmed);
+      return '';
+    });
+    setTagErrors(errors);
   };
 
   const buildPayload = (tag, i) => buildInventoryQRPayload(
@@ -147,6 +205,8 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (tagErrors.some(Boolean)) { alert('Please fix the duplicate asset tag errors before saving.'); return; }
+    if (serialErrors.some(Boolean)) { alert('Please fix the duplicate serial number errors before saving.'); return; }
     setLoading(true);
     try {
       let status = 'In Stock';
@@ -352,11 +412,41 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
                       <div className="flex items-center gap-2 pl-16">
                         <input type="text"
                           value={serialNumbers[i] || ''}
-                          onChange={e => setSerialNumbers(prev => { const n=[...prev]; n[i]=e.target.value; return n; })}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setSerialNumbers(prev => { const n=[...prev]; n[i]=v; return n; });
+                            // Check if this serial already exists in inventory or is a duplicate within current form
+                            setSerialErrors(prev => {
+                              const n = [...prev];
+                              const trimmed = v.trim();
+                              if (!trimmed) { n[i] = ''; return n; }
+                              if (existingSerialSet.has(trimmed)) {
+                                n[i] = `Serial number "${trimmed}" already exists in inventory.`;
+                              } else {
+                                const isDupInForm = serialNumbers.some((sn, idx) => idx !== i && sn.trim() === trimmed);
+                                if (isDupInForm) {
+                                  n[i] = `Serial number "${trimmed}" is duplicated in this form.`;
+                                } else {
+                                  n[i] = '';
+                                }
+                              }
+                              return n;
+                            });
+                          }}
                           onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
                           placeholder="Serial number (scan or type)"
                           className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
                       </div>
+                      {tagErrors[i] && (
+                        <div className="flex items-center gap-1.5 ml-16 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                          <span className="font-medium">⚠</span> {tagErrors[i]}
+                        </div>
+                      )}
+                      {serialErrors[i] && (
+                        <div className="flex items-center gap-1.5 ml-16 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                          <span className="font-medium">⚠</span> {serialErrors[i]}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -366,9 +456,26 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
         </div>
       )}
 
+      {(tagErrors.some(Boolean) || serialErrors.some(Boolean)) && (
+        <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl">
+          <span className="text-red-500 text-base leading-none mt-0.5">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-red-700">Cannot save — duplicate entries detected</p>
+            <ul className="mt-1 space-y-0.5">
+              {tagErrors.map((err, i) => err ? (
+                <li key={`tag-${i}`} className="text-xs text-red-600">• Unit {i + 1}: {err}</li>
+              ) : null)}
+              {serialErrors.map((err, i) => err ? (
+                <li key={`serial-${i}`} className="text-xs text-red-600">• Unit {i + 1}: {err}</li>
+              ) : null)}
+            </ul>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={loading}>
+        <Button type="submit" variant="primary" disabled={loading || tagErrors.some(Boolean) || serialErrors.some(Boolean)}>
           {loading ? 'Updating…' : 'Update Item'}
         </Button>
       </div>

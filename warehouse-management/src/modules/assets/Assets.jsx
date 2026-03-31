@@ -1338,7 +1338,7 @@ const Assets = () => {
         </Card>
 
         {/* Modals */}
-        <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Asset" size="lg">
+        <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Deploy Items" size="lg">
           <AssetForm onClose={() => setIsAddModalOpen(false)} onSuccess={() => {}} />
         </Modal>
 
