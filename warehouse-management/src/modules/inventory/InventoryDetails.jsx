@@ -54,7 +54,7 @@ const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
       <div class="qr-top">
         <div class="qr-box"><div id="qr_${i}"></div></div>
         <div class="logo-box">
-          <img src="/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
+          <img src="${window.location.origin}/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
           <div class="logo-fb">GOLI<br/>ICT</div>
         </div>
       </div>
@@ -180,7 +180,13 @@ const InventoryDetails = ({ item }) => {
               </div>
               <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
                 {assetTags.map((tag, i) => {
-                  const payload = buildInventoryQRPayload(item, tag, i);
+                  const sns = (() => {
+                    const raw = item.serial_numbers || item.serialNumbers || [];
+                    if (Array.isArray(raw)) return raw;
+                    if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+                    return [];
+                  })();
+                  const payload = buildInventoryQRPayload(item, tag, i, sns[i] || '');
                   return (
                     <div key={i} className="flex items-center gap-3 p-3 bg-white border border-blue-100 rounded-xl hover:border-blue-300 transition-colors">
                       <div className="flex-shrink-0">

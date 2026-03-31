@@ -433,7 +433,7 @@ const Inventory = () => {
             {filtered.length !== inventory.length ? 'Filtered Value' : 'Total Value'}
           </p>
           <p className="text-2xl font-bold text-blue-700">
-            ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+            ₱{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
           </p>
         </Card>
       </div>

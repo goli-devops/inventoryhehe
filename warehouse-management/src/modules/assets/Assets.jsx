@@ -1003,8 +1003,8 @@ const Assets = () => {
   const groupedByPO = useMemo(() => {
     const groups = {};
     filtered.forEach(asset => {
-      // If no PO, use asset_id as unique key so each asset is its own group
-      const key = asset.po_number?.trim() || `__NOPO__${asset.asset_id || asset.id}`;
+      // If no PO, each asset gets its own unique group key
+      const key = asset.po_number?.trim() || `__NOPO__${asset.id}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(asset);
     });
@@ -1097,8 +1097,7 @@ const Assets = () => {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
-            <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Asset</Button>
-            <Button variant="primary" icon={Scan} onClick={() => setIsScannerOpen(true)}>Scan QR</Button>
+            <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Deployment</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -1154,8 +1153,6 @@ const Assets = () => {
 
         {/* Results summary */}
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Showing <strong>{paginatedRows.length}</strong> row{paginatedRows.length !== 1 ? 's' : ''} (<strong>{paginated.length}</strong> assets) of <strong>{displayRows.length}</strong> total rows
-          </span>
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
             <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}

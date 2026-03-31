@@ -17,7 +17,7 @@ const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
       <div class="qr-top">
         <div class="qr-box"><div id="qr_${i}"></div></div>
         <div class="logo-box">
-          <img src="/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
+          <img src="${window.location.origin}/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none';this.nextSibling.style.display='flex';" />
           <div class="logo-fb">GOLI<br/>ICT</div>
         </div>
       </div>
@@ -186,6 +186,23 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
   const tagReduction = originalTags.length > 0 && qty < originalTags.length;
 
   return (
+    <>
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 flex flex-col items-center gap-4 min-w-64">
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-700 animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-gray-800">Updating Inventory Item</p>
+              <p className="text-xs text-gray-400 mt-1">Please wait…</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
 
@@ -356,6 +373,7 @@ const InventoryEditForm = ({ item, onClose, onSuccess }) => {
         </Button>
       </div>
     </form>
+    </>
   );
 };
 
