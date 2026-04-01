@@ -85,13 +85,20 @@ const getLogoDet = () => new Promise((resolve) => {
 });
 
 const printGroupAccountability = async (groupAssets) => {
+  // Filter out cancelled assets
+  const activeAssets = groupAssets.filter(a => a.status !== 'Cancelled');
+  if (activeAssets.length === 0) {
+    alert('No active assets to print. All items in this group are cancelled.');
+    return;
+  }
+  
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, M = 14;
   const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
-  const first = groupAssets[0] || {};
+  const first = activeAssets[0] || {};
 
   const logoData = await getLogoDet();
   if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
@@ -126,7 +133,7 @@ const printGroupAccountability = async (groupAssets) => {
   y += 6;
 
   const groupedAcc = {};
-  groupAssets.forEach(a => {
+  activeAssets.forEach(a => {
     const key = a.description || 'Unknown';
     if (!groupedAcc[key]) groupedAcc[key] = { tags: [], qty: 0 };
     const tag = a.inventory_asset_tag?.trim();
@@ -178,13 +185,20 @@ const printGroupAccountability = async (groupAssets) => {
 
 // ── Print Group Transmittal Slip ──────────────────────────────────────────────
 const printGroupTransmittal = async (groupAssets) => {
+  // Filter out cancelled assets
+  const activeAssets = groupAssets.filter(a => a.status !== 'Cancelled');
+  if (activeAssets.length === 0) {
+    alert('No active assets to print. All items in this group are cancelled.');
+    return;
+  }
+  
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, M = 20;
   const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
-  const first = groupAssets[0] || {};
+  const first = activeAssets[0] || {};
 
   const logoData = await getLogoDet();
   if (logoData) doc.addImage(logoData, 'PNG', M, 8, 28, 14);
@@ -206,7 +220,7 @@ const printGroupTransmittal = async (groupAssets) => {
   doc.text(today, W - 46, y - 0.5); y += 8;
 
   const itemMap = {};
-  groupAssets.forEach(a => {
+  activeAssets.forEach(a => {
     const key = a.description || 'Unknown';
     if (!itemMap[key]) itemMap[key] = { qty: 0, tags: [] };
     const tag = a.inventory_asset_tag?.trim();
@@ -1246,27 +1260,45 @@ const Assets = () => {
                             </td>
                             <td className="px-3 py-2 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => printGroupAccountability(groupAssets)}
-                                  title="Print Accountability Form"
-                                  className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
-                                >
-                                  <Printer size={11} /> Accountability Form
-                                </button>
-                                <button
-                                  onClick={() => printGroupTransmittal(groupAssets)}
-                                  title="Print Transmittal Slip"
-                                  className="flex items-center gap-1 px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
-                                >
-                                  <Printer size={11} /> Transmittal Slip
-                                </button>
-                                <button
-                                  onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
-                                  title="Edit PO Group"
-                                  className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
-                                >
-                                  <Edit size={12} /> Edit Group
-                                </button>
+                                {(() => {
+                                  const hasActiveAssets = groupAssets.some(a => a.status !== 'Cancelled');
+                                  const allCancelled = groupAssets.every(a => a.status === 'Cancelled');
+                                  return (
+                                    <>
+                                      <button
+                                        onClick={() => printGroupAccountability(groupAssets)}
+                                        disabled={allCancelled}
+                                        title={allCancelled ? 'Cannot print - all items cancelled' : 'Print Accountability Form'}
+                                        className={`flex items-center gap-1 px-2.5 py-1 text-white text-xs font-medium rounded-lg transition-colors ${
+                                          allCancelled 
+                                            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                                            : 'bg-indigo-600 hover:bg-indigo-500'
+                                        }`}
+                                      >
+                                        <Printer size={11} /> Accountability Form
+                                      </button>
+                                      <button
+                                        onClick={() => printGroupTransmittal(groupAssets)}
+                                        disabled={allCancelled}
+                                        title={allCancelled ? 'Cannot print - all items cancelled' : 'Print Transmittal Slip'}
+                                        className={`flex items-center gap-1 px-2.5 py-1 text-white text-xs font-medium rounded-lg transition-colors ${
+                                          allCancelled 
+                                            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                                            : 'bg-green-700 hover:bg-green-600'
+                                        }`}
+                                      >
+                                        <Printer size={11} /> Transmittal Slip
+                                      </button>
+                                      <button
+                                        onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
+                                        title="Edit PO Group"
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+                                      >
+                                        <Edit size={12} /> Edit Group
+                                      </button>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </td>
                           </tr>

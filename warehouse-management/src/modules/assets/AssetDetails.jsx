@@ -314,7 +314,7 @@ const AssetDetails = ({ asset, onUpdate }) => {
           </div>
 
           {/* Reprint buttons */}
-          {(asset.po_number || asset.accountability_seq || asset.transmittal_seq) && (
+          {(asset.po_number || asset.accountability_seq || asset.transmittal_seq) && asset.status !== 'Cancelled' && (
             <div className="flex gap-2 pt-2 border-t border-gray-100">
               <button
                 onClick={() => goliPrintQR(
