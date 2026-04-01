@@ -248,7 +248,7 @@ const PRForm = ({ onClose, onSuccess }) => {
         {totalEstimated > 0 && (
           <div className="flex justify-end mt-2">
             <span className="text-sm font-semibold text-gray-700">
-              Estimated Total: <span className="text-blue-600">${totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              Estimated Total: <span className="text-blue-600">₱{totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </span>
           </div>
         )}

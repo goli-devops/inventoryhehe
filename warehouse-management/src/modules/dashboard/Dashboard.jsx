@@ -14,15 +14,24 @@ import InventoryForm from '../inventory/InventoryForm';
 import AssetForm from '../assets/AssetForm';
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
-const StatCard = ({ label, value, bg, iconBg, iconColor }) => (
-  <Card padding="p-6">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm text-gray-500 mb-1">{label}</p>
-        <p className={`text-3xl font-bold ${iconColor}`}>{value}</p>
-      </div>
-      <div className={`w-12 h-12 ${iconBg} rounded-lg flex items-center justify-center`}>
-        <Package className={iconColor} size={24} />
+const StatCard = ({ label, value, bg, iconBg, iconColor, icon: Icon = Package, onClick }) => (
+  <Card 
+    padding="p-0" 
+    className={`overflow-hidden hover:shadow-lg transition-all duration-300 ${
+      onClick ? 'cursor-pointer transform hover:scale-105' : ''
+    }`}
+    onClick={onClick}
+  >
+    <div className={`h-1.5 ${bg || iconBg}`} />
+    <div className="p-6">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{label}</p>
+          <p className={`text-3xl font-bold ${iconColor}`}>{value}</p>
+        </div>
+        <div className={`w-14 h-14 ${iconBg} rounded-xl flex items-center justify-center shadow-sm`}>
+          <Icon className={iconColor} size={28} />
+        </div>
       </div>
     </div>
   </Card>
@@ -183,8 +192,8 @@ const EventForm = ({ initial, onSave, onCancel }) => {
 };
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-const Dashboard = () => {
-  const { getStats, refreshData, purchaseRequests, assets } = useWMS();
+const Dashboard = ({ setActiveModule }) => {
+  const { getStats, refreshData, purchaseRequests, assets, loading } = useWMS();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
   const stats = getStats();
 
@@ -242,24 +251,88 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
 
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative w-16 h-16">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 animate-spin" />
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold text-gray-800">Loading Dashboard</p>
+                <p className="text-sm text-gray-500 mt-1">Please wait...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Welcome back! Here's your warehouse overview</p>
+        </div>
+      </div>
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Inventory Items" value={stats.totalInventoryItems} iconBg="bg-blue-100"   iconColor="text-blue-600" />
-        <StatCard label="Pending PR"           value={stats.pendingPRs}          iconBg="bg-yellow-100" iconColor="text-yellow-600" />
-        <StatCard label="Pending Deployments"            value={stats.pendingPO}           iconBg="bg-purple-100" iconColor="text-purple-600" />
-        <StatCard label="Low Stock Items"       value={stats.lowStockItems}       iconBg="bg-orange-100" iconColor="text-orange-600" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <StatCard 
+          label="Total Inventory" 
+          value={stats.totalInventoryItems} 
+          bg="bg-gradient-to-r from-blue-500 to-blue-600" 
+          iconBg="bg-blue-100" 
+          iconColor="text-blue-600" 
+          icon={Package}
+          onClick={() => setActiveModule('inventory')}
+        />
+        <StatCard 
+          label="Pending PR" 
+          value={stats.pendingPRs} 
+          bg="bg-gradient-to-r from-yellow-500 to-yellow-600" 
+          iconBg="bg-yellow-100" 
+          iconColor="text-yellow-600" 
+          icon={FileText}
+          onClick={() => setActiveModule('pr')}
+        />
+        <StatCard 
+          label="Pending Deployments" 
+          value={stats.pendingPO} 
+          bg="bg-gradient-to-r from-purple-500 to-purple-600" 
+          iconBg="bg-purple-100" 
+          iconColor="text-purple-600" 
+          icon={Clock}
+          onClick={() => setActiveModule('assets')}
+        />
+        <StatCard 
+          label="Low Stock Alert" 
+          value={stats.lowStockItems} 
+          bg="bg-gradient-to-r from-orange-500 to-orange-600" 
+          iconBg="bg-orange-100" 
+          iconColor="text-orange-600" 
+          icon={AlertTriangle}
+        />
       </div>
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
 
         {/* Pending Panel */}
-        <Card className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-800">Pending PR & Deployments</h3>
+        <Card className="" padding="p-0">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Clock size={16} className="text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-800">Pending Items</h3>
+                <p className="text-xs text-gray-500">Purchase Requests & Deployments</p>
+              </div>
             </div>
           </div>
+          <div className="p-6">
           {(() => {
             const pendingPRs = (purchaseRequests || []).filter(pr =>
               ['Submitted', 'For Canvass', 'Pending'].includes(pr.status)
@@ -287,7 +360,11 @@ const Dashboard = () => {
                     </p>
                     <div className="space-y-1.5">
                       {pendingPRs.map(pr => (
-                        <div key={pr.id} className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-100 rounded-xl">
+                        <div 
+                          key={pr.id} 
+                          onClick={() => setActiveModule('pr', pr.id)}
+                          className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-100 rounded-xl cursor-pointer hover:bg-yellow-100 hover:border-yellow-200 transition-all"
+                        >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">{pr.pr_number || pr.prNumber || '—'}</p>
                             <p className="text-xs text-gray-500 truncate">{pr.requested_by || pr.requestedBy || '—'}</p>
@@ -314,7 +391,11 @@ const Dashboard = () => {
                     </p>
                     <div className="space-y-1.5">
                       {pendingAssets.map(asset => (
-                        <div key={asset.id} className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                        <div 
+                          key={asset.id} 
+                          onClick={() => setActiveModule('assets', asset.id)}
+                          className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl cursor-pointer hover:bg-blue-100 hover:border-blue-200 transition-all"
+                        >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">{asset.description || '—'}</p>
                             <p className="text-xs text-gray-500 truncate">
@@ -341,24 +422,6 @@ const Dashboard = () => {
               </div>
             );
           })()}
-        </Card>
-
-        {/* Quick Actions */}
-        <Card title="Quick Actions">
-          <div className="space-y-3">
-            <Button variant="primary"  className="w-full justify-center" onClick={() => setIsPRModalOpen(true)}>
-              <FileText size={16} className="mr-2" /> Create Purchase Request
-            </Button>
-            <Button variant="success"  className="w-full justify-center" onClick={() => setIsReceiveModalOpen(true)}>
-              <Package size={16} className="mr-2" /> Add Inventory Item
-            </Button>
-            <Button variant="purple"   className="w-full justify-center" onClick={() => setIsAssetModalOpen(true)}>
-              <Scan size={16} className="mr-2" /> Create Deployment
-            </Button>
-            <Button variant="secondary" className="w-full justify-center"
-              onClick={() => alert('Export Report feature coming soon!')}>
-              Export Report
-            </Button>
           </div>
         </Card>
       </div>
@@ -367,13 +430,16 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Calendar */}
-        <Card padding="p-4">
-          <div className="flex items-center justify-between mb-3">
+        <Card padding="p-0">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-blue-600" />
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Calendar size={16} className="text-blue-600" />
+              </div>
               <h3 className="text-sm font-semibold text-gray-800">Calendar</h3>
             </div>
           </div>
+          <div className="p-4">
 
           <MiniCalendar events={events} onDayClick={handleDayClick} selectedDate={selectedDate} />
 
@@ -386,22 +452,31 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
+          </div>
         </Card>
 
         {/* Selected Day Events */}
-        <Card padding="p-4" className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">
-                {selectedDate === todayStr ? 'Today' : fmtDate(selectedDate)}
-              </h3>
-              <p className="text-xs text-gray-400">{selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}</p>
+        <Card padding="p-0" className="lg:col-span-2">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-5 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Calendar size={16} className="text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    {selectedDate === todayStr ? 'Today' : fmtDate(selectedDate)}
+                  </h3>
+                  <p className="text-xs text-gray-500">{selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowEventForm(true); setEditingEvent(null); }}
+                className="flex items-center gap-1.5 text-xs bg-blue-900 text-white px-3 py-2 rounded-lg hover:bg-blue-800 transition-all shadow-sm hover:shadow-md">
+                <Plus size={14} /> New Event
+              </button>
             </div>
-            <button onClick={() => { setShowEventForm(true); setEditingEvent(null); }}
-              className="flex items-center gap-1 text-xs bg-blue-900 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-800 transition-colors">
-              <Plus size={12} /> New
-            </button>
           </div>
+          <div className="p-5">
 
           {/* Add/Edit form */}
           {showEventForm && (
@@ -491,6 +566,7 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+          </div>
         </Card>
       </div>
 

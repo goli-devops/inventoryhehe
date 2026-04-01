@@ -6,6 +6,7 @@ import {
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
+import usePreventDoubleSubmit from '../../utils/usePreventDoubleSubmit';
 
 const loadScript = (src) => new Promise((res, rej) => {
   if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
@@ -396,6 +397,7 @@ const EMPTY_LINE = () => ({ inventoryItemId: '', quantity: 1, serialNumber: '', 
 const AssetForm = ({ onClose, onSuccess }) => {
   const { inventory, deployAsset, assets: existingAssets } = useWMS();
   const { departments } = useSettings();
+  const [isProcessing, withProcessing] = usePreventDoubleSubmit();
 
   const availableItems = useMemo(() =>
     inventory.filter(item => item.quantity > 0),
@@ -609,25 +611,28 @@ const AssetForm = ({ onClose, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    const validLines = lines.filter(l => l.inventoryItemId);
+    if (isProcessing) return; // Prevent double submission
     
-    // Combine manual lines and scanned items
-    const allItems = [...validLines];
-    scannedItems.forEach(scanned => {
-      allItems.push({
-        inventoryItemId: scanned.inventoryItemId,
-        quantity: 1,
-        serialNumber: scanned.serialNumber,
-        assignedTo: '',
-        location: '',
-        warranty: '',
-        warrantyValue: '',
-        warrantyUnit: 'Year/s',
+    await withProcessing(async () => {
+      const validLines = lines.filter(l => l.inventoryItemId);
+      
+      // Combine manual lines and scanned items
+      const allItems = [...validLines];
+      scannedItems.forEach(scanned => {
+        allItems.push({
+          inventoryItemId: scanned.inventoryItemId,
+          quantity: 1,
+          serialNumber: scanned.serialNumber,
+          assignedTo: '',
+          location: '',
+          warranty: '',
+          warrantyValue: '',
+          warrantyUnit: 'Year/s',
+        });
       });
-    });
 
-    setConfirmStep(false);
-    setLoading(true);
+      setConfirmStep(false);
+      setLoading(true);
 
     try {
       // Build all deploy calls up front, then run in parallel per inventory item
@@ -778,6 +783,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
     } finally {
       setLoading(false);
     }
+    });
   };
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -1322,8 +1328,8 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="purple" disabled={loading || (!lines.some(l => l.inventoryItemId) && scannedItems.length === 0)}>
-          {loading ? 'Deploying…' : `Deploy ${lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0) + scannedItems.length} Asset(s)`}
+        <Button type="submit" variant="purple" disabled={loading || isProcessing || (!lines.some(l => l.inventoryItemId) && scannedItems.length === 0)}>
+          {loading || isProcessing ? 'Deploying…' : `Deploy ${lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0) + scannedItems.length} Asset(s)`}
         </Button>
       </div>
     </form>

@@ -23,17 +23,23 @@ const moduleNames = {
 const Layout = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState(null);
+
+  const navigateToModule = (module, itemId = null) => {
+    setActiveModule(module);
+    setSelectedItemId(itemId);
+  };
 
   const renderContent = () => {
     switch(activeModule) {
-      case 'dashboard':  return <Dashboard />;
-      case 'pr':         return <PurchaseRequests />;
+      case 'dashboard':  return <Dashboard setActiveModule={navigateToModule} />;
+      case 'pr':         return <PurchaseRequests selectedItemId={selectedItemId} clearSelectedItem={() => setSelectedItemId(null)} />;
       case 'inventory':  return <Inventory />;
-      case 'assets':     return <Assets />;
+      case 'assets':     return <Assets selectedItemId={selectedItemId} clearSelectedItem={() => setSelectedItemId(null)} />;
       case 'reports':    return <Reports />;
       case 'users':      return <Users />;
       case 'settings':   return <Settings />;
-      default:           return <Dashboard />;
+      default:           return <Dashboard setActiveModule={navigateToModule} />;
     }
   };
 

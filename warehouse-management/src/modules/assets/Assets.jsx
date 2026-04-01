@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Filter, Scan, Eye, Edit, Trash2, Ban, Printer,
   ChevronLeft, ChevronRight, X, FileSpreadsheet, Download,
-  Search, ShieldAlert, Square, CheckSquare,
+  Search, Square, CheckSquare,
   ChevronDown, ChevronUp, CheckCircle, AlertCircle,
 } from 'lucide-react';
 import Button from '../../components/common/Button';
@@ -11,7 +11,7 @@ import Modal from '../../components/common/Modal';
 import AssetForm from './AssetForm';
 import AssetEditForm from './AssetEditForm';
 import AssetDetails from './AssetDetails';
-import AssetAuditLog from './AssetAuditLog';
+
 import QRModal from '../../components/common/QRModal';
 import QRScanner from '../../components/common/QRScanner';
 import { useWMS } from '../../context/WMSContext';
@@ -932,13 +932,12 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const EMPTY_FILTERS = { assetId: '', category: '', status: '', assignedTo: '', location: '', dateFrom: '', dateTo: '' };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-const Assets = () => {
+const Assets = ({ selectedItemId, clearSelectedItem }) => {
   const { assets: rawAssets, deleteAsset, cancelAsset, bulkCancelAssets, getStats, loading, updateAsset } = useWMS();
   const { categories } = useSettings();
   const assets = rawAssets ?? [];
   const stats  = getStats();
 
-  const [activeTab,       setActiveTab]       = useState('list');
   const [isAddModalOpen,  setIsAddModalOpen]  = useState(false);
   const [viewAsset,       setViewAsset]       = useState(null);
   const [editAsset,       setEditAsset]       = useState(null);
@@ -957,6 +956,7 @@ const Assets = () => {
   const [exporting,       setExporting]       = useState(false);
   const [selectedIds,     setSelectedIds]     = useState(new Set());
   const [expandedGroups, setExpandedGroups] = useState(new Set()); // empty = all collapsed by default
+  const [highlightedId, setHighlightedId] = useState(null);
 
   const handleFilterChange = (key, val) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
   const resetFilters = () => { setFilters(EMPTY_FILTERS); setSearch(''); setPage(1); };
@@ -1039,6 +1039,41 @@ const Assets = () => {
   // paginated still needed for select-all count
   const paginated = paginatedRows.flatMap(row => row.assets);
 
+  // Handle selectedItemId from dashboard
+  useEffect(() => {
+    if (selectedItemId) {
+      const asset = assets.find(a => a.id === selectedItemId);
+      if (asset) {
+        const assetIndex = displayRows.findIndex(row => 
+          row.assets.some(a => a.id === selectedItemId)
+        );
+        if (assetIndex !== -1) {
+          const targetPage = Math.floor(assetIndex / pageSize) + 1;
+          setPage(targetPage);
+          
+          const row = displayRows[assetIndex];
+          if (row.isGroup) {
+            setExpandedGroups(prev => new Set([...prev, row.poKey]));
+          }
+          
+          setHighlightedId(selectedItemId);
+          
+          setTimeout(() => {
+            const element = document.getElementById(`asset-row-${selectedItemId}`);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 300);
+          
+          setTimeout(() => {
+            setHighlightedId(null);
+            clearSelectedItem?.();
+          }, 3000);
+        }
+      }
+    }
+  }, [selectedItemId, assets, displayRows, pageSize, clearSelectedItem]);
+
   const inUse       = assets.filter(a => a.status === 'In Use').length;
   const maintenance = assets.filter(a => a.status === 'Maintenance' || a.status === 'Repair').length;
   const cancelled   = assets.filter(a => a.status === 'Cancelled').length;
@@ -1088,25 +1123,8 @@ const Assets = () => {
   return (
     <div className="space-y-4">
 
-      {/* Module Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
-        <button onClick={() => setActiveTab('list')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-          <Scan size={15} /> Asset Tracking
-        </button>
-        <button onClick={() => setActiveTab('audit')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === 'audit' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-          <ShieldAlert size={15} /> Cancellation Audit Log
-        </button>
-      </div>
-
-      {/* ── Audit Tab ── */}
-      {activeTab === 'audit' && <AssetAuditLog />}
-
-      {/* ── List Tab ── */}
-      {activeTab === 'list' && <div className="space-y-4">
+      {/* ── Asset Tracking ── */}
+      <div className="space-y-4">
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
@@ -1305,8 +1323,13 @@ const Assets = () => {
                         )}
                         {/* Asset rows - show directly if single item, or under group if multiple */}
                         {(isGroup ? !collapsed : true) && groupAssets.map((asset, i) => (
-                          <tr key={`${poKey}-${asset.id || asset.asset_id}-${i}`} className={`hover:bg-gray-50 transition-colors border-l-4 ${
-                            selectedIds.has(asset.id) 
+                          <tr 
+                            key={`${poKey}-${asset.id || asset.asset_id}-${i}`} 
+                            id={`asset-row-${asset.id}`}
+                            className={`hover:bg-gray-50 transition-all border-l-4 ${
+                            highlightedId === asset.id
+                              ? 'bg-yellow-100 border-yellow-500 animate-pulse'
+                              : selectedIds.has(asset.id) 
                               ? 'bg-blue-50 border-blue-400' 
                               : isGroup 
                                 ? 'bg-green-50 border-transparent border-b-2 border-b-blue-300' 
@@ -1451,7 +1474,7 @@ const Assets = () => {
           </div>
         )}
           </div>
-      </div>}
+      </div>
     </div>
   );
 };

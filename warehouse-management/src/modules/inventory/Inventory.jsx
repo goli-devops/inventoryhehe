@@ -13,6 +13,7 @@ import InventoryEditForm from './InventoryEditForm';
 import InventoryAuditLog from './InventoryAuditLog';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
+import usePreventDoubleSubmit from '../../utils/usePreventDoubleSubmit';
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
 const loadScript = (src) =>
@@ -93,11 +94,12 @@ const exportToPDF = async (rows) => {
 };
 
 // ─── Delete Confirmation Modal ────────────────────────────────────────────────
-const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
+const DeleteConfirmModal = ({ item, onConfirm, onCancel, isProcessing }) => {
   const [reason, setReason] = useState('');
   const [error,  setError]  = useState('');
 
   const handleConfirm = () => {
+    if (isProcessing) return; // Prevent double submission
     if (!reason.trim()) { setError('Please provide a reason for deletion.'); return; }
     onConfirm(reason.trim());
   };
@@ -144,14 +146,14 @@ const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
       <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
-        <button onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        <button onClick={onCancel} disabled={isProcessing}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
           Cancel
         </button>
-        <button onClick={handleConfirm}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+        <button onClick={handleConfirm} disabled={isProcessing}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50">
           <Trash2 size={14} />
-          Confirm Delete
+          {isProcessing ? 'Deleting...' : 'Confirm Delete'}
         </button>
       </div>
     </div>
@@ -237,6 +239,7 @@ const Inventory = () => {
   const { inventory: rawInventory, getStats, deleteInventoryItem, loading } = useWMS();
   const [operationLoading, setOperationLoading] = React.useState(null);
   const { categories } = useSettings();
+  const [isProcessing, withProcessing] = usePreventDoubleSubmit();
   const inventory = rawInventory ?? [];
   const stats = getStats();
 
@@ -326,11 +329,18 @@ const Inventory = () => {
 
   const handleView   = (item) => { setSelectedItem(item); setIsViewModalOpen(true); };
   const handleEdit   = (item) => { setSelectedItem(item); setIsEditModalOpen(true); };
-  const handleDelete = (item) => setDeleteTarget(item);
+  const handleDelete = (item) => {
+    if (isProcessing) return; // Prevent opening modal if already processing
+    setDeleteTarget(item);
+  };
   const handleDeleteConfirm = async (reason) => {
-    const ok = await deleteInventoryItem(deleteTarget.id, reason);
-    if (!ok) alert('Failed to delete inventory item');
-    setDeleteTarget(null);
+    if (isProcessing) return; // Prevent double submission
+    
+    await withProcessing(async () => {
+      const ok = await deleteInventoryItem(deleteTarget.id, reason);
+      if (!ok) alert('Failed to delete inventory item');
+      setDeleteTarget(null);
+    });
   };
 
   const handleExportExcel = async () => {
@@ -564,8 +574,8 @@ const Inventory = () => {
                           className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
                           <Edit size={15} />
                         </button>
-                        <button onClick={() => handleDelete(item)} title="Delete"
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={() => handleDelete(item)} title="Delete" disabled={isProcessing}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                           <Trash2 size={15} />
                         </button>
                       </div>
@@ -631,11 +641,12 @@ const Inventory = () => {
         )}
       </Modal>
 
-      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Inventory Item" size="md">
+      <Modal isOpen={!!deleteTarget} onClose={() => !isProcessing && setDeleteTarget(null)} title="Delete Inventory Item" size="md">
         <DeleteConfirmModal
           item={deleteTarget}
           onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteTarget(null)}
+          onCancel={() => !isProcessing && setDeleteTarget(null)}
+          isProcessing={isProcessing}
         />
       </Modal>
       </div>} {/* end activeTab === 'list' */}
