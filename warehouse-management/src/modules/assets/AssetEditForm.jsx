@@ -5,7 +5,7 @@ import { useSettings } from '../../context/SettingsContext';
 
 const AssetEditForm = ({ asset, onClose, onSuccess }) => {
   const { updateAsset } = useWMS();
-  const { categories } = useSettings();
+  const { categories, departments } = useSettings();
 
   const [formData, setFormData] = useState({
     description:      asset.description || '',
@@ -23,6 +23,7 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
     purchasePrice:    asset.purchase_price || asset.purchasePrice || 0,
     warrantyValue:    (asset.warranty || '').split(' ')[0] || '',
     warrantyUnit:     (asset.warranty || '').split(' ').slice(1).join(' ') || 'Year/s',
+    department:       asset.department || '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +55,7 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
         purchase_date:     formData.purchaseDate,
         purchase_price:    formData.purchasePrice,
         warranty:          formData.warrantyValue ? `${formData.warrantyValue} ${formData.warrantyUnit}` : '',
+        department:        formData.department,
       });
       if (result) { onSuccess?.(result); onClose(); }
       else alert('Failed to update asset');
@@ -123,6 +125,11 @@ const AssetEditForm = ({ asset, onClose, onSuccess }) => {
           <div><label className={lbl}>Assigned To</label>
             <input type="text" name="assignedTo" value={formData.assignedTo} onChange={handleInputChange}
               placeholder="Employee name" className={inp} /></div>
+          <div><label className={lbl}>Branch / Department</label>
+            <select name="department" value={formData.department} onChange={handleInputChange} className={inp}>
+              <option value="">— Select Department —</option>
+              {(departments || []).map(d => <option key={d} value={d}>{d}</option>)}
+            </select></div>
           <div><label className={lbl}>Purchase Date <span className="text-red-500">*</span></label>
             <input type="date" name="purchaseDate" value={formData.purchaseDate} onChange={handleInputChange}
               required className={inp} /></div>

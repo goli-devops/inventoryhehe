@@ -62,7 +62,7 @@ const reprintAccountability = async (asset) => {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
   doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 110, y + 0.5);
-  doc.text(asset.jor_number || '', M + 13, y - 0.5);
+  doc.text(asset.department || asset.jor_number || '', M + 13, y - 0.5);
   y += 7;
   doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 120, y + 0.5);
@@ -288,6 +288,7 @@ const AssetDetails = ({ asset, onUpdate }) => {
           {/* Reference Numbers — inline in details */}
           {(asset.po_number || asset.pr_number || asset.jor_number || asset.accountability_seq || asset.transmittal_seq) && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl grid grid-cols-2 gap-2 text-xs">
+              {asset.department && <div><p className="text-blue-400 font-medium">Department</p><p className="font-semibold text-gray-800">{asset.department}</p></div>}
               {asset.po_number && <div><p className="text-blue-400 font-medium">PO Number</p><p className="font-semibold text-gray-800">{asset.po_number}</p></div>}
               {asset.pr_number && <div><p className="text-blue-400 font-medium">PR Number</p><p className="font-semibold text-gray-800">{asset.pr_number}</p></div>}
               {asset.jor_number && <div><p className="text-blue-400 font-medium">JOR Number</p><p className="font-semibold text-gray-800">{asset.jor_number}</p></div>}
@@ -298,6 +299,7 @@ const AssetDetails = ({ asset, onUpdate }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <InfoRow icon={Hash}   label="Asset Tag"      value={asset.inventory_asset_tag?.trim() || 'N/A'} />
+            {asset.department && <InfoRow icon={Tag}    label="Department"     value={asset.department} />}
             <InfoRow icon={Tag}    label="Category"       value={asset.category} />
             <InfoRow icon={Hash}   label="Serial Number"  value={asset.serial_number || asset.serialNumber} />
             <InfoRow icon={MapPin} label="Location"       value={asset.location} />

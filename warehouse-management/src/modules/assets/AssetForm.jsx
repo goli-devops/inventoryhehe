@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const loadScript = (src) => new Promise((res, rej) => {
   if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
@@ -55,7 +56,7 @@ const printAccountabilityForm = async (deployedAssets, sharedData) => {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
   doc.text('Dept.:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 110, y + 0.5);
-  doc.text(sharedData.jorNumber || '', M + 13, y - 0.5);
+  doc.text(sharedData.department || sharedData.jorNumber || '', M + 13, y - 0.5);
   y += 7;
   doc.setFont('helvetica', 'bold'); doc.text('Name:', M, y); doc.setFont('helvetica', 'normal');
   doc.line(M + 12, y + 0.5, 120, y + 0.5);
@@ -215,6 +216,7 @@ const ConfirmationStep = ({ lines, scannedItems, sharedData, getItem, getAvailab
         {sharedData.jorNumber && <div><p className="text-gray-400">JOR Number</p><p className="font-semibold">{sharedData.jorNumber}</p></div>}
         {sharedData.accountabilitySeq && <div><p className="text-gray-400">Accountability Seq.</p><p className="font-semibold">{sharedData.accountabilitySeq}</p></div>}
         {sharedData.transmittalSeq && <div><p className="text-gray-400">Transmittal Seq.</p><p className="font-semibold">{sharedData.transmittalSeq}</p></div>}
+        {sharedData.department && <div><p className="text-gray-400">Department</p><p className="font-semibold">{sharedData.department}</p></div>}
         {sharedData.assignedTo && <div><p className="text-gray-400">Assigned To</p><p className="font-semibold">{sharedData.assignedTo}</p></div>}
         {sharedData.location && <div><p className="text-gray-400">Location</p><p className="font-semibold">{sharedData.location}</p></div>}
       </div>
@@ -393,6 +395,7 @@ const EMPTY_LINE = () => ({ inventoryItemId: '', quantity: 1, serialNumber: '', 
 
 const AssetForm = ({ onClose, onSuccess }) => {
   const { inventory, deployAsset, assets: existingAssets } = useWMS();
+  const { departments } = useSettings();
 
   const availableItems = useMemo(() =>
     inventory.filter(item => item.quantity > 0),
@@ -413,6 +416,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
     jorNumber:        '',
     accountabilitySeq:'',
     transmittalSeq:   '',
+    department:       '',
     status:           'In Progress',
     purchaseDate:     new Date().toISOString().split('T')[0],
     assignedTo:       '',
@@ -729,6 +733,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
           serialNumbers:     serialNumbersForDeployment,  // Only serial numbers for deployed units
           assignedTo:        line.assignedTo || sharedData.assignedTo,
           location:          line.location || sharedData.location,
+          department:        sharedData.department,
           status:            sharedData.status,
           purchaseDate:      sharedData.purchaseDate,
           warranty:          line.warrantyValue ? `${line.warrantyValue} ${line.warrantyUnit}` : '',
@@ -1094,25 +1099,25 @@ const AssetForm = ({ onClose, onSuccess }) => {
         <div className="grid grid-cols-2 gap-3">
           <div><label className={lbl}>PO Number</label>
             <input type="text" name="poNumber" value={sharedData.poNumber} onChange={handleSharedChange}
-              placeholder="e.g. PO-2025-001" className={inp} /></div>
+              className={inp} /></div>
           <div><label className={lbl}>PR Number</label>
             <input type="text" name="prNumber" value={sharedData.prNumber} onChange={handleSharedChange}
-              placeholder="e.g. PR-2025-001" className={inp} /></div>
+              className={inp} /></div>
           <div><label className={lbl}>JOR Number</label>
             <input type="text" name="jorNumber" value={sharedData.jorNumber} onChange={handleSharedChange}
-              placeholder="e.g. JOR-2025-001" className={inp} /></div>
+              className={inp} /></div>
           <div><label className={lbl}>Accountability Seq. No.</label>
             <input type="text" name="accountabilitySeq" value={sharedData.accountabilitySeq} onChange={handleSharedChange}
-              placeholder="e.g. ACC-001" className={inp} /></div>
+              className={inp} /></div>
           <div><label className={lbl}>Transmittal Seq. No.</label>
             <input type="text" name="transmittalSeq" value={sharedData.transmittalSeq} onChange={handleSharedChange}
-              placeholder="e.g. TRS-001" className={inp} /></div>
-          <div><label className={lbl}>Receiving Report No. <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+              className={inp} /></div>
+          <div><label className={lbl}>Receiving Report No.</label>
             <input type="text" name="rrNumber" value={sharedData.rrNumber} onChange={handleSharedChange}
-              placeholder="e.g. RR-2025-001" className={inp} /></div>
-          <div><label className={lbl}>Sales Invoice No. <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+              className={inp} /></div>
+          <div><label className={lbl}>Sales Invoice No.</label>
             <input type="text" name="siNumber" value={sharedData.siNumber} onChange={handleSharedChange}
-              placeholder="e.g. SI-2025-001" className={inp} /></div>
+              className={inp} /></div>
         </div>
       </div>
 
@@ -1136,7 +1141,13 @@ const AssetForm = ({ onClose, onSuccess }) => {
               placeholder="Employee name" className={inp} /></div>
           <div><label className={lbl}>Default Location</label>
             <input type="text" name="location" value={sharedData.location} onChange={handleSharedChange}
-              placeholder="e.g. Office 3F" className={inp} /></div>
+              className={inp} /></div>
+          <div className="col-span-2"><label className={lbl}>Branch / Department <span className="text-red-500">*</span></label>
+            <select name="department" required value={sharedData.department} onChange={handleSharedChange} className={inp}>
+              <option value="">— Select Department —</option>
+              {(departments || []).map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
 
         </div>
       </div>
@@ -1146,7 +1157,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inventory Items to Deploy</p>
           <button type="button" onClick={addLine}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-lg border border-blue-500 hover:bg-blue-800 transition-colors">
             <Plus size={13} /> Add Item
           </button>
         </div>
@@ -1203,7 +1214,7 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
                   {/* Warning if item is over-allocated */}
                   {item && line.quantity > maxQty && (
-                    <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+                    <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
                       <AlertCircle size={13} /> Quantity exceeds available stock for this item.
                     </div>
                   )}
@@ -1220,31 +1231,13 @@ const AssetForm = ({ onClose, onSuccess }) => {
                           <p className="font-semibold text-gray-800">₱{(item.unit_price || 0).toLocaleString()}</p></div>
                       </div>
 
-                      {/* Asset tags from inventory */}
-                      <div className={`flex items-center gap-2 p-2 border rounded-lg ${tags.length > 0 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-200'}`}>
-                        <Tag size={13} className={tags.length > 0 ? 'text-green-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />
-                        <div className="text-xs">
-                          {tags.length > 0 ? (
-                            <>
-                              <p className="font-semibold text-green-700">Inventory Asset Tags:</p>
-                              <p className="text-green-600 font-mono">{tags.slice(0, 5).join(', ')}{tags.length > 5 ? ` +${tags.length - 5} more` : ''}</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="font-semibold text-gray-500">No Asset Tags</p>
-                              <p className="text-gray-400">Asset ID will show as N/A, no QR generated</p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
                       {/* Per-line fields */}
                       <div className="grid grid-cols-2 gap-3">
                         {/* Quantity stepper — max is actual remaining stock for this line */}
                         <div>
                           <label className={lbl}>
                             Qty to Deploy
-                            <span className={`text-xs ml-1 ${maxQty <= 1 ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
+                            <span className={`text-xs ml-1 ${maxQty <= 1 ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
                               max {maxQty}
                               {maxQty === 0 && ' — no stock remaining'}
                               {maxQty === 1 && ' — last unit'}
@@ -1287,10 +1280,10 @@ const AssetForm = ({ onClose, onSuccess }) => {
                           <input type="text" value={line.assignedTo}
                             onChange={e => updateLine(i, 'assignedTo', e.target.value)}
                             placeholder={sharedData.assignedTo || 'Employee name'} className={inp} /></div>
-                        <div><label className={lbl}>Location <span className="text-xs text-gray-400">(overrides default)</span></label>
+                        <div><label className={lbl}>Location</label>
                           <input type="text" value={line.location}
                             onChange={e => updateLine(i, 'location', e.target.value)}
-                            placeholder={sharedData.location || 'Location'} className={inp} /></div>
+                            placeholder={sharedData.location || ''} className={inp} /></div>
                         <div>
                           <label className={lbl}>Warranty</label>
                           <div className="flex gap-1.5">
@@ -1311,10 +1304,10 @@ const AssetForm = ({ onClose, onSuccess }) => {
 
                       {/* Stock bar */}
                       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${line.quantity >= maxQty ? 'bg-orange-400' : 'bg-blue-500'}`}
+                        <div className={`h-full rounded-full transition-all ${line.quantity >= maxQty ? 'bg-red-500' : 'bg-blue-500'}`}
                           style={{ width: `${Math.min(100, (line.quantity / maxQty) * 100)}%` }} />
                       </div>
-                      <p className={`text-xs ${line.quantity >= maxQty ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
+                      <p className={`text-xs ${line.quantity >= maxQty ? 'text-red-500 font-medium' : 'text-black-400'}`}>
                         Deploying {line.quantity} — Remaining after: {maxQty - line.quantity} {item.unit}
                         {line.quantity >= maxQty && ' — no stock left after this'}
                       </p>
@@ -1326,20 +1319,6 @@ const AssetForm = ({ onClose, onSuccess }) => {
           </div>
         )}
       </div>
-
-      {/* Summary */}
-      {(lines.some(l => l.inventoryItemId) || scannedItems.length > 0) && (
-        <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <Package size={15} className="text-green-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-green-800">
-            Deploying{' '}
-            <strong>{lines.filter(l => l.inventoryItemId).reduce((s, l) => s + l.quantity, 0) + scannedItems.length} asset record(s)</strong>
-            {' '}across <strong>{lines.filter(l => l.inventoryItemId).length + scannedItems.length} item(s)</strong>.
-            {scannedItems.length > 0 && <span className="block mt-1 text-blue-700 font-semibold">{scannedItems.length} scanned serial number(s) included.</span>}
-            QR codes will be taken from inventory asset tags where available.
-          </p>
-        </div>
-      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

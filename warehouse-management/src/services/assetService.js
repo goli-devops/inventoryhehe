@@ -9,6 +9,7 @@ const FIELD_LABELS = {
   serial_number:      'Serial Number',
   accountability_seq: 'Accountability Seq. No.',
   transmittal_seq:    'Transmittal Seq. No.',
+  department:         'Department',
   inventory_asset_tag:'Inventory Asset Tag',
   location:       'Location',
   assigned_to:    'Assigned To',
@@ -54,9 +55,10 @@ const AssetService = {
         po_number:          assetData.poNumber          || '',
         pr_number:          assetData.prNumber          || '',
         jor_number:         assetData.jorNumber         || '',
-        serial_number:      assetData.serialNumber?.trim() || null,
+        serial_number:      assetData.serialNumber      || '',
         accountability_seq: assetData.accountabilitySeq || '',
         transmittal_seq:    assetData.transmittalSeq    || '',
+        department:         assetData.department           || '',
         rr_number:          assetData.rrNumber          || '',
         si_number:          assetData.siNumber          || '',
         inventory_asset_tag:hasTag ? tag : '',   // empty = no tag
@@ -80,7 +82,6 @@ const AssetService = {
   },
 
   // Batch insert — creates all asset records in a single DB call
-  // Each asset receives its unique serial number from the inventory module
   async createBatch(assetsDataArray) {
     try {
       const rows = assetsDataArray.map((assetData, idx) => {
@@ -95,9 +96,10 @@ const AssetService = {
           po_number:          assetData.poNumber          || '',
           pr_number:          assetData.prNumber          || '',
           jor_number:         assetData.jorNumber         || '',
-          serial_number:      assetData.serialNumber?.trim() || null,  // Unique serial from inventory - null if empty
+          serial_number:      assetData.serialNumber      || '',
           accountability_seq: assetData.accountabilitySeq || '',
           transmittal_seq:    assetData.transmittalSeq    || '',
+        department:         assetData.department           || '',
         rr_number:          assetData.rrNumber          || '',
         si_number:          assetData.siNumber          || '',
           inventory_asset_tag:hasTag ? tag : '',
@@ -205,6 +207,7 @@ const AssetService = {
         jor_number:         updates.jorNumber          ?? updates.jor_number          ?? existing.jor_number,
         accountability_seq: updates.accountabilitySeq  ?? updates.accountability_seq  ?? existing.accountability_seq,
         transmittal_seq:    updates.transmittalSeq     ?? updates.transmittal_seq     ?? existing.transmittal_seq,
+        department:         updates.department                                  ?? existing.department,
         inventory_asset_tag:updates.inventoryAssetTag  ?? updates.inventory_asset_tag ?? existing.inventory_asset_tag,
         serial_number:  updates.serialNumber   ?? updates.serial_number   ?? existing.serial_number,
         location:       updates.location       ?? existing.location,

@@ -1000,7 +1000,7 @@ const Assets = () => {
         (!q || [a.inventory_asset_tag, a.asset_id, a.description, a.category,
                  a.location, a.assigned_to, a.serial_number,
                  a.po_number, a.pr_number, a.jor_number,
-                 a.transmittal_seq, a.accountability_seq]
+                 a.transmittal_seq, a.accountability_seq, a.department]
           .some(f => String(f || '').toLowerCase().includes(q))) &&
         (!filters.assetId    || String(a.asset_id    || '').toLowerCase().includes(filters.assetId.toLowerCase())) &&
         (!filters.category   || a.category  === filters.category) &&
