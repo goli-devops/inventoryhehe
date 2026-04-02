@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import Dashboard from '../../modules/dashboard/Dashboard';
@@ -21,13 +22,21 @@ const moduleNames = {
 };
 
 const Layout = () => {
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
 
+  const activeModule = location.pathname.slice(1) || 'dashboard';
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setSelectedItemId(params.get('itemId'));
+  }, [location.search]);
+
   const navigateToModule = (module, itemId = null) => {
-    setActiveModule(module);
-    setSelectedItemId(itemId);
+    const path = `/${module}${itemId ? `?itemId=${itemId}` : ''}`;
+    navigate(path);
   };
 
   const renderContent = () => {
@@ -60,7 +69,7 @@ const Layout = () => {
       }`}>
         <Sidebar
           activeModule={activeModule}
-          setActiveModule={(mod) => { setActiveModule(mod); setSidebarOpen(false); }}
+          setActiveModule={(mod) => { navigate(`/${mod}`); setSidebarOpen(false); }}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
         />

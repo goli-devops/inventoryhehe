@@ -1129,7 +1129,7 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
-            <Button variant="purple" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Deployment</Button>
+            <Button variant="primary" icon={Plus} onClick={() => setIsAddModalOpen(true)}>Add Deployment</Button>
 
             <button onClick={() => setShowFilters(v => !v)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
@@ -1239,14 +1239,14 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                       <React.Fragment key={poKey}>
                         {/* Show group header only if multiple items */}
                         {isGroup && (
-                          <tr className="bg-blue-950 text-white">
+                          <tr className="bg-green-50 text-gray-800">
                             <td className="px-4 py-2">
                               <button onClick={() => {
                                 if (allSelected) groupAssets.forEach(a => setSelectedIds(prev => { const n = new Set(prev); n.delete(a.id); return n; }));
                                 else groupAssets.forEach(a => setSelectedIds(prev => new Set([...prev, a.id])));
-                              }} className="text-blue-300 hover:text-white">
+                              }} className="text-gray-500 hover:text-gray-700">
                                 {allSelected
-                                  ? <CheckSquare size={16} className="text-blue-300" />
+                                  ? <CheckSquare size={16} className="text-green-600" />
                                   : <Square size={16} />}
                               </button>
                             </td>
@@ -1260,19 +1260,19 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                                   </span>
                                 ) : (
                                   <>
-                                    <span className="text-blue-300 text-xs font-medium uppercase tracking-wide mr-1">PO#</span>
+                                    <span className="text-green-700 text-xs font-medium uppercase tracking-wide mr-1">PO#</span>
                                     <span className="font-bold">{poKey}</span>
                                   </>
                                 )}
-                                <span className="ml-2 bg-white/20 text-white text-xs px-2 py-0.5 rounded-full font-normal">
+                                <span className="ml-2 bg-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full font-normal">
                                   {groupAssets.length} asset{groupAssets.length !== 1 ? 's' : ''}
                                 </span>
                                 {/* Show PR / JOR if present */}
                                 {groupAssets[0]?.pr_number && (
-                                  <span className="text-blue-300 text-xs ml-2">PR: {groupAssets[0].pr_number}</span>
+                                  <span className="text-green-700 text-xs ml-2">PR: {groupAssets[0].pr_number}</span>
                                 )}
                                 {groupAssets[0]?.jor_number && (
-                                  <span className="text-blue-300 text-xs ml-1">JOR: {groupAssets[0].jor_number}</span>
+                                  <span className="text-green-700 text-xs ml-1">JOR: {groupAssets[0].jor_number}</span>
                                 )}
                               </button>
                             </td>
@@ -1310,7 +1310,7 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                                       <button
                                         onClick={() => setEditGroupTarget({ poKey, assets: groupAssets })}
                                         title="Edit PO Group"
-                                        className="flex items-center gap-1 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-medium rounded-lg transition-colors"
                                       >
                                         <Edit size={12} /> Edit Group
                                       </button>
@@ -1332,7 +1332,7 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                               : selectedIds.has(asset.id) 
                               ? 'bg-blue-50 border-blue-400' 
                               : isGroup 
-                                ? 'bg-green-50 border-transparent border-b-2 border-b-blue-300' 
+                                ? 'bg-white border-transparent border-b-2 border-b-green-300' 
                                 : 'border-transparent'
                           }`}>
                             <td className="px-4 py-3">

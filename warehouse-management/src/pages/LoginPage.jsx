@@ -102,7 +102,7 @@ const LoginPage = () => {
               </div>
 
               <div className="flex justify-end -mt-2">
-                <p className="text-xs text-gray-400">Contact your administrator to create an account or to reset your password.</p>
+                <p className="text-xs text-gray-400">Contact ICT Department to create an account or to reset your password.</p>
               </div>
 
               <button
