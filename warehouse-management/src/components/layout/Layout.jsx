@@ -7,7 +7,6 @@ import PurchaseRequests from '../../modules/purchase-requests/PurchaseRequests';
 import Inventory from '../../modules/inventory/Inventory';
 import Assets from '../../modules/assets/Assets';
 import Reports from '../../modules/reports/Reports';
-import Users from '../../modules/users/Users';
 import Settings from '../../modules/settings/Settings';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -17,7 +16,6 @@ const moduleNames = {
   inventory: 'Inventory',
   assets: 'Asset Tracking',
   reports: 'Reports & Analytics',
-  users: 'User Management',
   settings: 'Settings',
 };
 
@@ -46,7 +44,6 @@ const Layout = () => {
       case 'inventory':  return <Inventory />;
       case 'assets':     return <Assets selectedItemId={selectedItemId} clearSelectedItem={() => setSelectedItemId(null)} />;
       case 'reports':    return <Reports />;
-      case 'users':      return <Users />;
       case 'settings':   return <Settings />;
       default:           return <Dashboard setActiveModule={navigateToModule} />;
     }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Search, Menu, Calendar, Check, X, AlertTriangle } from 'lucide-react';
-import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, Package, Scan, BarChart3, Settings } from 'lucide-react';
 import { useCalendar } from '../../context/CalendarContext';
 
 const modules = [
@@ -9,7 +9,6 @@ const modules = [
   { id: 'inventory', name: 'Inventory',           icon: Package         },
   { id: 'assets',    name: 'Deployments',      icon: Scan            },
   { id: 'reports',   name: 'Reports & Analytics', icon: BarChart3       },
-  { id: 'users',     name: 'User Management',     icon: Users           },
   { id: 'settings',  name: 'Settings',            icon: Settings        },
 ];
 

@@ -29,7 +29,6 @@ export const WMSProvider = ({ children }) => {
   const currentUser = {
     name:  authDisplayName || 'System',
     email: authUser?.email || '',
-    role:  authUser?.user_metadata?.role || 'Staff',
   };
 
   const loadAllData = useCallback(async () => {

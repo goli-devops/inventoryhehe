@@ -6,7 +6,6 @@ import { WMSProvider } from './context/WMSContext';
 import { CalendarProvider } from './context/CalendarContext';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
-import { Loader } from 'lucide-react';
 
 // Inner component so it can consume AuthContext
 const AppContent = () => {

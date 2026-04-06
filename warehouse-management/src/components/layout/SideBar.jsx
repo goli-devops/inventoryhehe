@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, FileText, Package,
-  Scan, BarChart3, Settings, Users, X, LogOut
+  Scan, BarChart3, Settings, X, LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -108,15 +108,14 @@ const Sidebar = ({ activeModule, setActiveModule, setSidebarOpen }) => {
 
   const modules = [
     { id: 'dashboard', name: 'Dashboard',           icon: LayoutDashboard },
-    { id: 'pr',        name: 'Purchase Requests',   icon: FileText        },
     { id: 'inventory', name: 'Inventory',           icon: Package         },
+    { id: 'pr',        name: 'Purchase Requests',   icon: FileText        },
     { id: 'assets',    name: 'Deployments',      icon: Scan            },
     { id: 'reports',   name: 'Reports & Analytics', icon: BarChart3       },
     { id: 'settings',  name: 'Settings',            icon: Settings        },
   ];
 
-  const displayRole = user?.user_metadata?.role || 'Staff';
-  const initials    = (displayName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const initials = (displayName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const handleConfirmSignOut = async () => {
     setSigningOut(true);
@@ -167,7 +166,6 @@ const Sidebar = ({ activeModule, setActiveModule, setSidebarOpen }) => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{displayName}</p>
-              <p className="text-xs text-blue-200">{displayRole}</p>
             </div>
             <button
               onClick={() => setShowLogoutModal(true)}

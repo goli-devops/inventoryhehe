@@ -60,22 +60,6 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  // Allow updating the profile display name from within the app
-  const updateDisplayName = async (newName) => {
-    if (!user) return false;
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: user.id, display_name: newName, updated_at: new Date().toISOString() });
-      if (error) throw error;
-      setProfile(prev => ({ ...prev, display_name: newName }));
-      return true;
-    } catch (err) {
-      console.error('[Auth] Failed to update display name:', err.message);
-      return false;
-    }
-  };
-
 
   // ── Auto-logout after 10 minutes of inactivity ─────────────────────────────
   const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutes
@@ -128,7 +112,6 @@ export const AuthProvider = ({ children }) => {
     displayName,
     signIn,
     signOut,
-    updateDisplayName,
     showInactivityWarning,
     resetInactivityTimer,
   };
