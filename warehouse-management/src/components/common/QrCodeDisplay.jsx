@@ -7,15 +7,9 @@ export const buildInventoryQRPayload = (item, tag, unitIndex, serialNumber) => [
   `Asset Tag : ${tag || 'N/A'}`,
   `Item      : ${item.description || 'N/A'}`,
   `Category  : ${item.category || 'N/A'}`,
-  `Status    : ${item.status || 'In Stock'}`,
-  `PO Number : ${item.po_number || 'N/A'}`,
-  `PR Number : ${item.pr_number || 'N/A'}`,
-  `JOR #     : ${item.jor_number || 'N/A'}`,
   `Location  : ${item.location || 'N/A'}`,
   `Assigned  : ${item.assigned_to || 'Unassigned'}`,
   `Serial #  : ${serialNumber || 'N/A'}`,
-  `Unit #    : ${(unitIndex ?? 0) + 1}`,
-  '====================',
 ].join('\n');
 
 export const buildAssetQRPayload = (asset) => [
@@ -23,14 +17,9 @@ export const buildAssetQRPayload = (asset) => [
   `Asset Tag : ${asset.inventory_asset_tag?.trim() || 'N/A'}`,
   `Item      : ${asset.description || 'N/A'}`,
   `Category  : ${asset.category || 'N/A'}`,
-  `Status    : ${asset.status || 'N/A'}`,
-  `PO Number : ${asset.po_number || 'N/A'}`,
-  `PR Number : ${asset.pr_number || 'N/A'}`,
-  `JOR #     : ${asset.jor_number || 'N/A'}`,
   `Location  : ${asset.location || 'N/A'}`,
   `Assigned  : ${asset.assigned_to || asset.assignedTo || 'Unassigned'}`,
   `Serial #  : ${asset.serial_number || asset.serialNumber || 'N/A'}`,
-  '====================',
 ].join('\n');
 
 export const buildQRPayload = buildAssetQRPayload;

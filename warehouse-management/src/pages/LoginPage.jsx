@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const { signIn } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw]     = useState(false);
@@ -16,6 +18,7 @@ const LoginPage = () => {
     setLoading(true);
     try {
       await signIn(email.trim(), password);
+      navigate('/dashboard');
     } catch (err) {
       setError(
         err.message === 'Invalid login credentials'
