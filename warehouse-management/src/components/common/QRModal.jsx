@@ -34,62 +34,39 @@ const QRModal = ({ asset, onClose }) => {
   const handlePrint = () => {
     if (!canvasRef.current || !qrReady) return;
 
-    const imgData    = canvasRef.current.toDataURL('image/png');
-    const description = asset?.description || '';
-    const category    = asset?.category || '';
-    const status      = asset?.status || '';
-    const location    = asset?.location || '—';
-    const serial      = asset?.serial_number || asset?.serialNumber || '—';
+    const imgData = canvasRef.current.toDataURL('image/png');
+    const assetTag = asset?.inventory_asset_tag?.trim() || asset?.asset_id || 'N/A';
 
     const html = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>QR Label – ${assetID}</title>
+    <title>Asset Label – ${assetTag}</title>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: Arial, sans-serif;
-        background: #fff;
-        display: flex;
-        justify-content: center;
-        padding: 24px;
-      }
-      .label {
-        border: 2px solid #1e3a5f;
-        border-radius: 12px;
-        padding: 20px 24px;
-        width: 300px;
-        text-align: center;
-      }
-      .brand { font-size: 10px; font-weight: bold; color: #1e3a5f; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
-      .qr-img { display: block; margin: 0 auto 14px; width: 180px; height: 180px; }
-      .hint { font-size: 9px; color: #999; margin-bottom: 12px; font-style: italic; }
-      .asset-id { font-size: 18px; font-weight: bold; color: #1e3a5f; margin-bottom: 4px; }
-      .desc { font-size: 12px; color: #333; margin-bottom: 10px; }
-      hr { border: none; border-top: 1px dashed #ccc; margin: 10px 0; }
-      table { width: 100%; font-size: 11px; border-collapse: collapse; }
-      td { padding: 3px 4px; text-align: left; }
-      td:first-child { color: #888; width: 38%; }
-      td:last-child { color: #333; font-weight: 600; }
-      @media print { body { padding: 0; } }
+      @page{size:38mm 24mm;margin:0}
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{background:#fff;padding:0;font-family:Arial,sans-serif}
+      .page{display:flex;flex-direction:column;gap:0}
+      .label{width:38mm;height:24mm;display:flex;align-items:center;padding:1mm;background:#fff;page-break-after:always}
+      .qr-box{flex-shrink:0;width:20mm;height:20mm;margin-right:1mm;display:flex;align-items:center;justify-content:center}
+      .qr-box img{display:block;width:100%;height:100%}
+      .info{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:0.5mm}
+      .logo{max-width:12mm;max-height:6mm;object-fit:contain}
+      .asset-tag{font-size:6.5pt;font-weight:bold;color:#000;font-family:monospace;letter-spacing:0.03em;word-break:break-all;text-align:center;line-height:1.1}
+      .label:last-child{page-break-after:avoid}
+      @media screen{body{background:#f0f0f0;padding:16px}.page{gap:12px}.label{border:1px solid #000}}
+      @media print{.label{border:none}}
     </style>
   </head>
   <body>
-    <div class="label">
-      <div class="brand">GOLI &ndash; ICT WMS</div>
-      <img class="qr-img" src="${imgData}" />
-      <div class="hint">Scan to view asset details</div>
-      <div class="asset-id">${assetID}</div>
-      <div class="desc">${description}</div>
-      <hr />
-      <table>
-        <tr><td>Category</td><td>${category}</td></tr>
-        <tr><td>Status</td><td>${status}</td></tr>
-        <tr><td>Location</td><td>${location}</td></tr>
-        <tr><td>Assigned To</td><td>${assignedTo}</td></tr>
-        <tr><td>Serial #</td><td>${serial}</td></tr>
-      </table>
+    <div class="page">
+      <div class="label">
+        <div class="qr-box"><img src="${imgData}" /></div>
+        <div class="info">
+          <img class="logo" src="${window.location.origin}/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none'" />
+          <div class="asset-tag">${assetTag}</div>
+        </div>
+      </div>
     </div>
   </body>
 </html>`;

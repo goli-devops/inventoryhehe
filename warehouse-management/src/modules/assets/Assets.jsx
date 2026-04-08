@@ -945,6 +945,7 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
   const [deleteTarget,    setDeleteTarget]    = useState(null);
   const [bulkCancelQueue, setBulkCancelQueue] = useState(null);
   const [editGroupTarget,   setEditGroupTarget]  = useState(null);
+  const [viewGroupTarget,   setViewGroupTarget]  = useState(null); // New: for viewing group details
   const [operationLoading,  setOperationLoading] = useState(null); // { type: 'deploy'|'cancel', count: N }
   const [selectedQRAsset, setSelectedQRAsset] = useState(null);
   const [isScannerOpen,   setIsScannerOpen]   = useState(false);
@@ -1251,9 +1252,8 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                               </button>
                             </td>
                             <td colSpan="7" className="px-4 py-2">
-                              <button onClick={() => toggleGroup(poKey)}
-                                className="flex items-center gap-2 text-sm font-semibold w-full text-left">
-                                {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                              <button onClick={() => setViewGroupTarget({ poKey, assets: groupAssets })}
+                                className="flex items-center gap-2 text-sm font-semibold w-full text-left hover:text-green-800 transition-colors">
                                 {poKey.startsWith('__NOPO__') ? (
                                   <span className="font-bold">
                                     {groupAssets[0]?.inventory_asset_tag?.trim() || groupAssets[0]?.asset_id || 'N/A'}
@@ -1321,8 +1321,8 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
                             </td>
                           </tr>
                         )}
-                        {/* Asset rows - show directly if single item, or under group if multiple */}
-                        {(isGroup ? !collapsed : true) && groupAssets.map((asset, i) => (
+                        {/* Asset rows - hide when in group, only show in modal */}
+                        {!isGroup && groupAssets.map((asset, i) => (
                           <tr 
                             key={`${poKey}-${asset.id || asset.asset_id}-${i}`} 
                             id={`asset-row-${asset.id}`}
@@ -1428,6 +1428,133 @@ const Assets = ({ selectedItemId, clearSelectedItem }) => {
 
         <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Asset" size="md">
           <DeleteConfirmModal asset={deleteTarget} onConfirm={handleDeleteConfirm} onCancel={() => setDeleteTarget(null)} />
+        </Modal>
+
+        {/* View PO Group Details Modal */}
+        <Modal isOpen={!!viewGroupTarget} onClose={() => setViewGroupTarget(null)}
+          title={`PO Group: ${viewGroupTarget?.poKey?.startsWith('__NOPO__') ? 'No PO Number' : viewGroupTarget?.poKey || ''}`} size="xl">
+          {viewGroupTarget && (
+            <div className="space-y-4">
+              {/* Group Summary */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">PO Number</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {viewGroupTarget.poKey.startsWith('__NOPO__') ? 'N/A' : viewGroupTarget.poKey}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Total Assets</p>
+                  <p className="text-sm font-semibold text-gray-800">{viewGroupTarget.assets.length}</p>
+                </div>
+                {viewGroupTarget.assets[0]?.pr_number && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">PR Number</p>
+                    <p className="text-sm font-semibold text-gray-800">{viewGroupTarget.assets[0].pr_number}</p>
+                  </div>
+                )}
+                {viewGroupTarget.assets[0]?.jor_number && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">JOR Number</p>
+                    <p className="text-sm font-semibold text-gray-800">{viewGroupTarget.assets[0].jor_number}</p>
+                  </div>
+                )}
+                {viewGroupTarget.assets[0]?.accountability_seq && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Accountability Seq.</p>
+                    <p className="text-sm font-semibold text-gray-800">{viewGroupTarget.assets[0].accountability_seq}</p>
+                  </div>
+                )}
+                {viewGroupTarget.assets[0]?.transmittal_seq && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Transmittal Seq.</p>
+                    <p className="text-sm font-semibold text-gray-800">{viewGroupTarget.assets[0].transmittal_seq}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Assets Table */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Asset Tag</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Serial No.</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Assigned To</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {viewGroupTarget.assets.map(asset => (
+                        <tr key={asset.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-mono text-blue-700 font-semibold whitespace-nowrap">
+                            {asset.inventory_asset_tag?.trim() || <span className="text-gray-400 font-normal">N/A</span>}
+                          </td>
+                          <td className="px-3 py-2 text-gray-800">{asset.description}</td>
+                          <td className="px-3 py-2 text-gray-600">{asset.category}</td>
+                          <td className="px-3 py-2 text-gray-600">{asset.serial_number || '—'}</td>
+                          <td className="px-3 py-2 text-gray-600">{asset.location || '—'}</td>
+                          <td className="px-3 py-2 text-gray-600">{asset.assigned_to || '—'}</td>
+                          <td className="px-3 py-2"><StatusBadge status={asset.status} /></td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => { setViewAsset(asset); setViewGroupTarget(null); }} title="View Details"
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                <Eye size={14} />
+                              </button>
+                              {asset.status !== 'Cancelled' && (
+                                <button onClick={() => { setEditAsset(asset); setViewGroupTarget(null); }} title="Edit"
+                                  className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
+                                  <Edit size={14} />
+                                </button>
+                              )}
+                              {asset.status !== 'Cancelled' && (
+                                <button onClick={() => { setCancelTarget(asset); setViewGroupTarget(null); }} title="Cancel Asset"
+                                  className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
+                                  <Ban size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { printGroupAccountability(viewGroupTarget.assets); }}
+                    disabled={viewGroupTarget.assets.every(a => a.status === 'Cancelled')}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                  >
+                    <Printer size={14} /> Accountability Form
+                  </button>
+                  <button
+                    onClick={() => { printGroupTransmittal(viewGroupTarget.assets); }}
+                    disabled={viewGroupTarget.assets.every(a => a.status === 'Cancelled')}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  >
+                    <Printer size={14} /> Transmittal Slip
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setViewGroupTarget(null)}>Close</Button>
+                  <Button variant="primary" onClick={() => { setEditGroupTarget(viewGroupTarget); setViewGroupTarget(null); }}>
+                    <Edit size={14} /> Edit Group
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Modal>
 
         {/* Edit PO Group Modal */}

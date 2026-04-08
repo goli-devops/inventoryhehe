@@ -5,11 +5,16 @@ import React, { useEffect, useRef, useState } from 'react';
 export const buildInventoryQRPayload = (item, tag, unitIndex, serialNumber) => [
   '== GOLI ICT ASSET ==',
   `Asset Tag : ${tag || 'N/A'}`,
-  `Unit #    : ${(unitIndex ?? 0) + 1}`,
   `Item      : ${item.description || 'N/A'}`,
   `Category  : ${item.category || 'N/A'}`,
+  `Status    : ${item.status || 'In Stock'}`,
+  `PO Number : ${item.po_number || 'N/A'}`,
+  `PR Number : ${item.pr_number || 'N/A'}`,
+  `JOR #     : ${item.jor_number || 'N/A'}`,
   `Location  : ${item.location || 'N/A'}`,
+  `Assigned  : ${item.assigned_to || 'Unassigned'}`,
   `Serial #  : ${serialNumber || 'N/A'}`,
+  `Unit #    : ${(unitIndex ?? 0) + 1}`,
   '====================',
 ].join('\n');
 

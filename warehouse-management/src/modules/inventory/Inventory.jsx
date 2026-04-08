@@ -507,7 +507,7 @@ const Inventory = () => {
                       : <Square size={16} />}
                   </button>
                 </th>
-              {['Item Code','Description','Category','Qty','Unit','Unit Price','Location','Supplier','Status','Actions'].map(h => (
+              {['Item Code','Item Name','Category','Qty','Unit','Unit Price','Location','Supplier','Status','Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
