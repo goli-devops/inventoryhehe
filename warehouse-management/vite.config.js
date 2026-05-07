@@ -47,7 +47,8 @@ function obfuscatorPlugin() {
           selfDefending:               true,       
 
           sourceMap:                   false,    
-          sourceMapMode:               'off',
+          sourceMapMode:               'separate',
+
 
           compact:                     true,       
           simplify:                    true,
