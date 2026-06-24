@@ -3,7 +3,8 @@ import {
   Package, MapPin, Banknote, User, Hash,
   Clock, ArrowRight, Edit3, PlusCircle, CheckCircle, QrCode, Tag, Printer
 } from 'lucide-react';
-import QRCodeDisplay, { buildInventoryQRPayload, QRPreviewModal } from '../../components/common/QrCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload, QRPreviewModal } from '../../components/common/QRCodeDisplay';
+import { escapeHtml } from '../../utils/security';
 
 const STATUS_STYLES = {
   'In Stock':     'bg-green-100 text-green-700',
@@ -43,11 +44,12 @@ const HISTORY_PAGE_SIZE = 5;
 
 
 // ── P900W 24mm tape print — optimized for Brother label printer ──────
-const goliPrintQR = (tags, payloadBuilder, title = 'Asset Labels') => {
+const goliPrintQR = (tags, payloadBuilder, title = 'Asset Tags') => {
   const validTags = tags.filter(Boolean);
   if (validTags.length === 0) { alert('No asset tags to print.'); return; }
   const printWindow = window.open('', '_blank', 'width=800,height=700');
   if (!printWindow) { alert('Please allow pop-ups to print.'); return; }
+<<<<<<< HEAD
   const QR_SIZE = 80;
   const cards = validTags.map((tag, i) => `
     <div class="label">
@@ -55,11 +57,23 @@ const goliPrintQR = (tags, payloadBuilder, title = 'Asset Labels') => {
       <div class="info">
         <img class="logo" src="${window.location.origin}/goli_logo.jpg" alt="GOLI" onerror="this.style.display='none'" />
         <div class="asset-tag">${tag}</div>
+=======
+  const QR_SIZE = 140; // 22mm in pixels at 96dpi
+  // SECURITY FIX: Escape all user-controlled data to prevent XSS
+  const safeTitle = escapeHtml(title);
+  const cards = validTags.map((tag, i) => `
+    <div class="label">
+      <div class="content-row">
+        <div class="qr-box"><div id="qr_${i}"></div></div>
+        <img class="qr-logo" src="/ict_logo.jpg" alt="ICT" onerror="this.style.display='none'" />
+>>>>>>> dashboard
       </div>
+      <div class="asset-tag">${escapeHtml(tag)}</div>
     </div>`).join('');
   const scripts = validTags.map((tag, i) =>
-    'new QRCode(document.getElementById(\'qr_' + i + '\'),{text:' + JSON.stringify(payloadBuilder(tag, i)) + ',width:' + QR_SIZE + ',height:' + QR_SIZE + ',correctLevel:QRCode.CorrectLevel.M});'
+    'new QRCode(document.getElementById("qr_' + i + '"),{text:' + JSON.stringify(payloadBuilder(tag, i)) + ',width:' + QR_SIZE + ',height:' + QR_SIZE + ',correctLevel:QRCode.CorrectLevel.H});'
   ).join('\n');
+<<<<<<< HEAD
   printWindow.document.write('<!DOCTYPE html><html><head><title>' + title + '</title><style>'
     + '@page{size:38mm 24mm;margin:0}'
     + '*{margin:0;padding:0;box-sizing:border-box}'
@@ -74,6 +88,19 @@ const goliPrintQR = (tags, payloadBuilder, title = 'Asset Labels') => {
     + '.label:last-child{page-break-after:avoid}'
     + '@media screen{body{background:#f0f0f0;padding:16px}.page{gap:12px}.label{border:1px solid #000}}'
     + '@media print{.label{border:none}}'
+=======
+  printWindow.document.write('<!DOCTYPE html><html><head><title>' + safeTitle + '</title><style>'
+    + '@page{size:48mm 24mm;margin:0}'
+    + '*{margin:0;padding:0;box-sizing:border-box}'
+    + 'body{background:#fff;padding:0;font-family:Arial,sans-serif}'
+    + '.page{display:flex;flex-direction:column}'
+    + '.label{width:48mm;height:24mm;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 2mm;background:#fff}'
+    + '.content-row{display:flex;align-items:center;justify-content:center;gap:1.5mm}'
+    + '.qr-box{display:flex;align-items:center;justify-content:center}'
+    + '.qr-box canvas,.qr-box img{display:block;width:20mm!important;height:20mm!important}'
+    + '.qr-logo{width:20mm;height:20mm;object-fit:contain}'
+    + '.asset-tag{font-size:9pt;font-weight:bold;color:#000;font-family:monospace;letter-spacing:0.05em;word-break:break-all;text-align:center;width:100%;line-height:1;margin-top:0.5mm}'
+>>>>>>> dashboard
     + '</style></head><body>'
     + '<div class="page">' + cards + '</div>'
     + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
@@ -103,6 +130,12 @@ const InventoryDetails = ({ item }) => {
       catch { return raw.trim() ? [raw] : []; }
     }
     if (typeof raw === 'object') return Object.values(raw).filter(Boolean);
+    return [];
+  })();
+  const serialNumbers = (() => {
+    const raw = item.serial_numbers || item.serialNumbers || [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
     return [];
   })();
   const totalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
@@ -169,6 +202,7 @@ const InventoryDetails = ({ item }) => {
                   <Tag size={15} /> Asset Tags — {assetTags.length} unit{assetTags.length !== 1 ? 's' : ''}
                 </p>
                 <button
+<<<<<<< HEAD
                   onClick={() => {
                     const sns = (() => {
                       const raw = item.serial_numbers || item.serialNumbers || [];
@@ -178,6 +212,9 @@ const InventoryDetails = ({ item }) => {
                     })();
                     goliPrintQR(assetTags, (tag, i) => buildInventoryQRPayload(item, tag, i, sns[i] || ''), item.description);
                   }}
+=======
+                  onClick={() => goliPrintQR(assetTags, (tag, i) => buildInventoryQRPayload(item, tag, i, serialNumbers[i] || ''), item.description)}
+>>>>>>> dashboard
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-colors"
                 >
                   <Printer size={12} /> Print All QR Codes
@@ -201,7 +238,11 @@ const InventoryDetails = ({ item }) => {
                         <p className="font-mono font-bold text-gray-800 truncate">{tag}</p>
                         <p className="text-gray-500 mt-0.5">Unit {i + 1} of {assetTags.length}</p>
                         <button
+<<<<<<< HEAD
                           onClick={() => goliPrintQR([tag], (t, idx) => buildInventoryQRPayload(item, t, i, sns[i] || ''), item.description)}
+=======
+                          onClick={() => goliPrintQR([tag], (t, i) => buildInventoryQRPayload(item, t, i, serialNumbers[i] || ''), item.description)}
+>>>>>>> dashboard
                           className="mt-1.5 flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
                         >
                           <Printer size={10} /> Print this QR
