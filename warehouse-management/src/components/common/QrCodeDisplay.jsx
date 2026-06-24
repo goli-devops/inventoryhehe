@@ -6,10 +6,15 @@ export const buildInventoryQRPayload = (item, tag, unitIndex, serialNumber) => [
   '== GOLI ICT ASSET ==',
   `Asset Tag : ${tag || 'N/A'}`,
   `Item      : ${item.description || 'N/A'}`,
+<<<<<<< HEAD
   `Category  : ${item.category || 'N/A'}`,
   `Location  : ${item.location || 'N/A'}`,
   `Assigned  : ${item.assigned_to || 'Unassigned'}`,
   `Serial #  : ${serialNumber || 'N/A'}`,
+=======
+  `Serial #  : ${serialNumber || 'N/A'}`,
+  '====================',
+>>>>>>> dashboard
 ].join('\n');
 
 export const buildAssetQRPayload = (asset) => [
