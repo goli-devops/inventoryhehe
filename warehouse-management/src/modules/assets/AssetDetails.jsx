@@ -4,7 +4,7 @@ import {
   ArrowRight, Edit3, PlusCircle, CheckCircle, XCircle,
   QrCode, Printer, FileText
 } from 'lucide-react';
-import QRCodeDisplay, { QRPreviewModal, buildAssetQRPayload } from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { QRPreviewModal, buildAssetQRPayload } from '../../components/common/QrCodeDisplay';
 import QRModal from '../../components/common/QRModal';
 
 
