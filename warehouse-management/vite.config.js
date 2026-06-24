@@ -6,9 +6,10 @@ function obfuscatorPlugin() {
 
   return {
     name: 'vite-plugin-obfuscator',
-    configResolved(config) {
-      isProduction = config.command === 'build' && config.mode !== 'development';
-    },
+   configResolved(config) {
+  const isVercel = !!process.env.VERCEL;
+  isProduction = config.command === 'build' && config.mode !== 'development' && !isVercel;
+},
     async generateBundle(options, bundle) {
       if (!isProduction) return;
 
@@ -45,10 +46,9 @@ function obfuscatorPlugin() {
           debugProtectionInterval:     4000,       
           disableConsoleOutput:        true,        
           selfDefending:               true,       
-
           sourceMap:                   false,    
           sourceMapMode:               'separate',
-
+          sourceMap:                   false,
 
           compact:                     true,       
           simplify:                    true,
@@ -107,7 +107,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('node_modules')) {
               if (id.includes('react') || id.includes('scheduler')) return 'fw';
               if (id.includes('supabase') || id.includes('realtime')) return 'db';
-              if (id.includes('jspdf') || id.includes('autotable')) return 'pdf';
+              // Removed 'pdf' chunk - jspdf not installed
               return 'lib';
             }
           },
@@ -117,6 +117,18 @@ export default defineConfig(({ mode }) => {
 
     server: {
       sourcemapIgnoreList: () => true,
+      proxy: {
+        '/api/servicedesk': {
+          target: 'https://gcghelpdesk.globalcomfortgroup.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/servicedesk/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => {
+              proxyReq.setHeader('TECHNICIAN_KEY', 'B4E4F287-4A91-464E-BFF5-B99F4F10B291');
+            });
+          },
+        },
+      },
     },
   };
 });
