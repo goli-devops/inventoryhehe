@@ -3,7 +3,7 @@ import {
   Package, MapPin, Banknote, User, Hash,
   Clock, ArrowRight, Edit3, PlusCircle, CheckCircle, QrCode, Tag, Printer
 } from 'lucide-react';
-import QRCodeDisplay, { buildInventoryQRPayload, QRPreviewModal } from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload, QRPreviewModal } from '../../components/common/QrCodeDisplay';
 
 const STATUS_STYLES = {
   'In Stock':     'bg-green-100 text-green-700',
