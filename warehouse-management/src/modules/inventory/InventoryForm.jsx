@@ -3,7 +3,7 @@ import { Hash, QrCode, RefreshCw, ChevronDown, ChevronUp, Printer, Barcode } fro
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
-import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QrCodeDisplay';
 
 // ── Shared QR print — GOLI style ──────────────────────────────────────────────
 const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
