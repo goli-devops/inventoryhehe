@@ -5,7 +5,7 @@ import PurchaseRequestService from '../services/purchaseRequestService';
 import InventoryService from '../services/inventoryService';
 import AssetService from '../services/assetService';
 import AuditLogService from '../services/auditLogService';
-import InventoryAuditLogService from '../services/InventoryauditlogService';
+import InventoryAuditLogService from '../services/Inventoryauditlogservice';
 import AssetAuditLogService from '../services/assetAuditLogService';
 
 const WMSContext = createContext();
