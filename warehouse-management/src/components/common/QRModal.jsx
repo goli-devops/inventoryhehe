@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Download, Printer } from 'lucide-react';
 import QRCode from 'qrcode';
-import { buildQRPayload } from './QRCodeDisplay';
+import { buildQRPayload } from './QrCodeDisplay';
 
 const QRModal = ({ asset, onClose }) => {
   const canvasRef     = useRef(null);
