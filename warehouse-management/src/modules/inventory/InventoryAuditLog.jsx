@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, Search, ChevronLeft, ChevronRight, X, Eye, RefreshCw } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Modal from '../../components/common/Modal';
-import InventoryAuditLogService from '../../services/inventoryAuditLogService';
+import InventoryAuditLogService from '../../services/Inventoryauditlogservice';
 
 const PAGE_SIZE = 15;
 
