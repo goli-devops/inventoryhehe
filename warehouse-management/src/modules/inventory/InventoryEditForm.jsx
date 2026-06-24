@@ -3,7 +3,7 @@ import { QrCode, Tag, Printer, RefreshCw, Hash } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { useWMS } from '../../context/WMSContext';
 import { useSettings } from '../../context/SettingsContext';
-import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QRCodeDisplay';
+import QRCodeDisplay, { buildInventoryQRPayload } from '../../components/common/QrCodeDisplay';
 
 // ── Shared QR print — GOLI style: QR left + logo right + asset tag below ──────
 const goliPrintQR = (tags, payloadBuilder, title = 'QR Codes') => {
