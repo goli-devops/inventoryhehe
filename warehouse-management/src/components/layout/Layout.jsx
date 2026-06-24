@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Sidebar from './Sidebar';
+import Sidebar from './SideBar';
 import Header from './Header';
 import Dashboard from '../../modules/dashboard/Dashboard';
 import PurchaseRequests from '../../modules/purchase-requests/PurchaseRequests';
