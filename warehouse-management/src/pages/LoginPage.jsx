@@ -123,7 +123,7 @@ const LoginPage = () => {
         </div>
 
         <p className="text-center text-blue-300 text-xs mt-6">
-          © {new Date().getFullYear()} Global Officium Limited Inc. — Internal Use Only
+          © {new Date().getFullYear()} Global Officium Limited Inc. — for ICT Department Use Only
         </p>
       </div>
     </div>
